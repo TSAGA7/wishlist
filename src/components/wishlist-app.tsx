@@ -185,7 +185,7 @@ export function WishlistApp() {
       .catch(() => toast.error("Не удалось открыть список на устройстве"));
     setImportReady(true);
     if (import.meta.env.PROD && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      navigator.serviceWorker.register("/wishlist/sw.js").catch(() => undefined);
     }
     return () => {
       alive = false;
@@ -1368,6 +1368,7 @@ function CosmicMap({
     if (mode === "trips") list = list.filter((w) => w.kind === "trip");
     if (mode === "priority") list = list.filter((w) => w.priority === "high" || w.priority === "critical");
     if (mode === "savings") list = list.filter((w) => w.targetAmount != null && w.savedAmount > 0);
+    if (mode === "collections") list = list.filter((w) => w.collectionId != null);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((w) => w.title.toLowerCase().includes(q) || w.note.toLowerCase().includes(q));
@@ -1376,7 +1377,7 @@ function CosmicMap({
   }, [wishes, mode, search]);
 
   // Simple cluster layout: groups by collectionId
-  const positions = useMemo(() => {
+  const { positions, lines } = useMemo(() => {
     const groups = new Map<string | null, Wish[]>();
     filtered.forEach((w) => {
       const key = w.collectionId;
@@ -1384,20 +1385,34 @@ function CosmicMap({
       groups.get(key)!.push(w);
     });
     const pos = new Map<string, { x: number; y: number; size: number }>();
+    const lineList: { x1: number; y1: number; x2: number; y2: number; color: string }[] = [];
     let gi = 0;
     groups.forEach((list, cid) => {
-      const cx = Math.cos(gi * 1.7) * (180 + gi * 40);
-      const cy = Math.sin(gi * 1.7) * (180 + gi * 40);
+      const cx = Math.cos(gi * 1.7) * (220 + gi * 60);
+      const cy = Math.sin(gi * 1.7) * (220 + gi * 60);
+      const col = collections.find((c) => c.id === cid);
+      const color = col?.color || "rgba(180,160,255,0.45)";
+      const pts: { x: number; y: number }[] = [];
       list.forEach((w, i) => {
         const ang = (i / Math.max(list.length, 1)) * Math.PI * 2;
-        const r = 40 + i * 18;
-        const size = 70 + (w.priority === "critical" ? 40 : w.priority === "high" ? 24 : 0) + (w.savedAmount > 0 ? 10 : 0);
-        pos.set(w.id, { x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r, size });
+        const r = 50 + i * 22;
+        const size = 68 + (w.priority === "critical" ? 36 : w.priority === "high" ? 20 : 0) + (w.savedAmount > 0 ? 8 : 0);
+        const x = cx + Math.cos(ang) * r;
+        const y = cy + Math.sin(ang) * r;
+        pos.set(w.id, { x, y, size });
+        pts.push({ x, y });
       });
+      // constellation lines
+      for (let i = 0; i < pts.length - 1; i++) {
+        lineList.push({ x1: pts[i].x, y1: pts[i].y, x2: pts[i + 1].x, y2: pts[i + 1].y, color });
+      }
+      if (pts.length > 2) {
+        lineList.push({ x1: pts[pts.length - 1].x, y1: pts[pts.length - 1].y, x2: pts[0].x, y2: pts[0].y, color });
+      }
       gi++;
     });
-    return pos;
-  }, [filtered]);
+    return { positions: pos, lines: lineList };
+  }, [filtered, collections]);
 
   useEffect(() => {
     localStorage.setItem("wishlist-map-view", JSON.stringify(view));
@@ -1557,6 +1572,11 @@ function CosmicMap({
           className="absolute left-1/2 top-1/2 origin-center"
           style={{ willChange: "transform" }}
         >
+          <svg className="pointer-events-none absolute overflow-visible" style={{ left: -2000, top: -2000, width: 4000, height: 4000 }}>
+            {lines.map((ln, i) => (
+              <line key={i} x1={ln.x1 + 2000} y1={ln.y1 + 2000} x2={ln.x2 + 2000} y2={ln.y2 + 2000} stroke={ln.color} strokeWidth="1.5" opacity="0.6" />
+            ))}
+          </svg>
           {filtered.map((wish) => {
             const p = positions.get(wish.id);
             if (!p) return null;

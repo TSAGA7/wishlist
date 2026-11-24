@@ -1,15 +1,15 @@
-const CACHE = "wishlist-shell-v2";
+const CACHE = "wishlist-shell-v3";
 
 const PRECACHE = [
-  "/",
-  "/index.html",
-  "/placeholder-purchase.svg",
-  "/placeholder-trip.svg",
-  "/favicon.svg",
-  "/icon-192.png",
-  "/icon-512.png",
-  "/icon-maskable-512.png",
-  "/manifest.webmanifest",
+  "/wishlist/",
+  "/wishlist/index.html",
+  "/wishlist/placeholder-purchase.svg",
+  "/wishlist/placeholder-trip.svg",
+  "/wishlist/favicon.svg",
+  "/wishlist/icon-192.png",
+  "/wishlist/icon-512.png",
+  "/wishlist/icon-maskable-512.png",
+  "/wishlist/manifest.webmanifest",
 ];
 
 self.addEventListener("install", (event) => {
@@ -34,7 +34,7 @@ async function networkFirst(request) {
     if (fresh.ok) cache.put(request, fresh.clone());
     return fresh;
   } catch {
-    const cached = (await cache.match(request)) || (await cache.match("/"));
+    const cached = (await cache.match(request)) || (await cache.match("/wishlist/")) || (await cache.match("/wishlist/index.html"));
     if (cached) return cached;
     return new Response("Нет сети — откройте Wishlist ещё раз, когда появится связь.", {
       status: 503,
