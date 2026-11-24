@@ -1,7 +1,21 @@
-const CACHE = "wishlist-shell-v1";
+const CACHE = "wishlist-shell-v2";
+
+const PRECACHE = [
+  "/",
+  "/index.html",
+  "/placeholder-purchase.svg",
+  "/placeholder-trip.svg",
+  "/favicon.svg",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/icon-maskable-512.png",
+  "/manifest.webmanifest",
+];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil(
+    caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener("activate", (event) => {
@@ -33,9 +47,13 @@ async function cacheFirst(request) {
   const cache = await caches.open(CACHE);
   const cached = await cache.match(request);
   if (cached) return cached;
-  const fresh = await fetch(request);
-  if (fresh.ok) cache.put(request, fresh.clone());
-  return fresh;
+  try {
+    const fresh = await fetch(request);
+    if (fresh.ok) cache.put(request, fresh.clone());
+    return fresh;
+  } catch {
+    return new Response("", { status: 404 });
+  }
 }
 
 self.addEventListener("fetch", (event) => {
@@ -50,7 +68,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/assets/") || /\.(?:js|css|svg|png|webp|woff2|json|webmanifest)$/.test(url.pathname)) {
+  if (
+    url.pathname.startsWith("/assets/") ||
+    /\.(?:js|css|svg|png|webp|woff2|json|webmanifest)$/.test(url.pathname) ||
+    PRECACHE.includes(url.pathname)
+  ) {
     event.respondWith(cacheFirst(request));
   }
 });

@@ -1,7 +1,7 @@
 {
   "name": "Wishlist",
   "short_name": "Wishlist",
-  "description": "Список желаний: ссылка, цена и архив — всё на этом устройстве.",
+  "description": "Список желаний: покупки, поездки, накопления — всё на этом устройстве.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -29,5 +29,15 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
 }

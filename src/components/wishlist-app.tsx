@@ -44,13 +44,16 @@ import {
   saveOrder,
   saveProfile,
   type Wish,
+  type Collection,
+  type Priority,
 } from "@/lib/wishlist-db";
 
-type Screen = "home" | "archive" | "backups" | "settings";
-type Filter = "all" | "active" | "archive";
+type Screen = "home" | "archive" | "backups" | "settings" | "collections" | "map";
+type Filter = "all" | "purchases" | "trips" | "active" | "archive";
 
 interface Draft {
   id: string | null;
+  kind: "purchase" | "trip";
   url: string;
   title: string;
   price: string;
@@ -59,17 +62,31 @@ interface Draft {
   image: string | null;
   archived: boolean;
   priceAuto: boolean;
+  priority: Priority;
+  collectionId: string | null;
+  // savings
+  targetAmount: string;
+  savedAmount: string;
+  deadline: string;
+  // trip
+  countries: string;
+  cities: string;
+  startDate: string;
+  endDate: string;
 }
 
 type Overlay =
   | { kind: "edit"; draft: Draft }
+  | { kind: "view"; wish: Wish }
   | { kind: "install" }
-  | { kind: "import"; name: string | null; wishes: Wish[] }
+  | { kind: "import"; name: string | null; wishes: Wish[]; collections: Collection[] }
+  | { kind: "add-choice" }
   | null;
 
-function emptyDraft(currency: Currency): Draft {
+function emptyDraft(currency: Currency, kind: "purchase" | "trip" = "purchase"): Draft {
   return {
     id: null,
+    kind,
     url: "",
     title: "",
     price: "",
@@ -78,12 +95,22 @@ function emptyDraft(currency: Currency): Draft {
     image: null,
     archived: false,
     priceAuto: false,
+    priority: "medium",
+    collectionId: null,
+    targetAmount: "",
+    savedAmount: "0",
+    deadline: "",
+    countries: "",
+    cities: "",
+    startDate: "",
+    endDate: "",
   };
 }
 
 function draftFromWish(wish: Wish): Draft {
   return {
     id: wish.id,
+    kind: wish.kind,
     url: wish.url,
     title: wish.title,
     price: wish.price == null ? "" : String(wish.price),
@@ -92,6 +119,15 @@ function draftFromWish(wish: Wish): Draft {
     image: wish.image,
     archived: wish.archived,
     priceAuto: wish.priceAuto,
+    priority: wish.priority,
+    collectionId: wish.collectionId,
+    targetAmount: wish.targetAmount == null ? "" : String(wish.targetAmount),
+    savedAmount: String(wish.savedAmount),
+    deadline: wish.deadline || "",
+    countries: wish.countries.join(", "),
+    cities: wish.cities.join(", "),
+    startDate: wish.startDate || "",
+    endDate: wish.endDate || "",
   };
 }
 
@@ -122,6 +158,7 @@ export function WishlistApp() {
   const [name, setName] = useState(DEFAULT_NAME);
   const [currency, setCurrency] = useState<Currency>("RUB");
   const [wishes, setWishes] = useState<Wish[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
   const [screen, setScreen] = useState<Screen>("home");
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
@@ -143,6 +180,7 @@ export function WishlistApp() {
         setNameDraft(data.name);
         setCurrency(data.currency);
         setWishes(data.wishes);
+        setCollections(data.collections);
       })
       .catch(() => toast.error("Не удалось открыть список на устройстве"));
     setImportReady(true);
@@ -159,13 +197,16 @@ export function WishlistApp() {
   const needle = query.trim().toLowerCase();
 
   const homeItems = useMemo(() => {
-    const pool =
-      filter === "active" ? wishes.filter((wish) => !wish.archived) : filter === "archive" ? archived : wishes;
+    let pool = wishes.filter((w) => !w.archived);
+    if (filter === "purchases") pool = pool.filter((w) => w.kind === "purchase");
+    if (filter === "trips") pool = pool.filter((w) => w.kind === "trip");
+    if (filter === "active") pool = pool; // already non-archived
+    if (filter === "archive") pool = wishes.filter((w) => w.archived);
     const filtered = needle
       ? pool.filter((wish) => `${wish.title}\n${wish.note}\n${wish.url}`.toLowerCase().includes(needle))
       : pool;
     return [...filtered].sort((a, b) => a.order - b.order || b.createdAt - a.createdAt);
-  }, [archived, filter, needle, wishes]);
+  }, [filter, needle, wishes]);
 
   function applyTheme(mode: "light" | "dark") {
     setDark(setTheme(mode));
@@ -207,11 +248,14 @@ export function WishlistApp() {
       toast.error("Цена выглядит странно");
       return;
     }
+    const target = parseAmount(draft.targetAmount);
+    const saved = parseAmount(draft.savedAmount) || 0;
     const now = Date.now();
     const existing = draft.id ? wishes.find((wish) => wish.id === draft.id) : undefined;
     const order = existing?.order ?? (wishes.length ? Math.min(...wishes.map((wish) => wish.order)) - 1 : 0);
     const wish: Wish = {
       id: draft.id ?? crypto.randomUUID(),
+      kind: draft.kind,
       title: title.slice(0, 180),
       price,
       currency: draft.currency,
@@ -221,6 +265,16 @@ export function WishlistApp() {
       priceAuto: draft.priceAuto && price != null,
       archived: draft.archived,
       order,
+      collectionId: draft.collectionId,
+      priority: draft.priority,
+      targetAmount: target,
+      savedAmount: Math.max(0, saved),
+      deadline: draft.deadline || null,
+      savingsHistory: existing?.savingsHistory || [],
+      countries: draft.countries.split(",").map((s) => s.trim()).filter(Boolean),
+      cities: draft.cities.split(",").map((s) => s.trim()).filter(Boolean),
+      startDate: draft.startDate || null,
+      endDate: draft.endDate || null,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };
@@ -292,7 +346,7 @@ export function WishlistApp() {
   }
 
   function exportJson() {
-    const blob = new Blob([JSON.stringify(buildBackup(name, wishes), null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(buildBackup(name, wishes, collections), null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -311,7 +365,7 @@ export function WishlistApp() {
           toast.error("В файле нет хотелок");
           return;
         }
-        setOverlay({ kind: "import", name: parsed.name, wishes: parsed.wishes });
+        setOverlay({ kind: "import", name: parsed.name, wishes: parsed.wishes, collections: parsed.collections });
       } catch {
         toast.error("Файл не читается");
       }
@@ -319,20 +373,22 @@ export function WishlistApp() {
     reader.readAsText(file);
   }
 
-  async function confirmImport(nextName: string | null, nextWishes: Wish[]) {
-    const previous = { name, wishes };
+  async function confirmImport(nextName: string | null, nextWishes: Wish[], nextCollections: Collection[]) {
+    const previous = { name, wishes, collections };
     if (nextName?.trim()) {
       setName(nextName.trim());
       setNameDraft(nextName.trim());
     }
     setWishes(nextWishes);
+    setCollections(nextCollections);
     setOverlay(null);
     try {
-      await replaceWishlist(nextName, nextWishes);
+      await replaceWishlist(nextName, nextWishes, nextCollections);
       toast.success("Список заменён копией");
     } catch {
       setName(previous.name);
       setWishes(previous.wishes);
+      setCollections(previous.collections);
       toast.error("Не удалось восстановить копию");
     }
   }
@@ -409,9 +465,9 @@ export function WishlistApp() {
               totals={totals}
             />
             <div className="pills" role="tablist">
-              <FilterPill pressed={filter === "all"} onClick={() => setFilter("all")} label={`Все (${wishes.length})`} />
-              <FilterPill pressed={filter === "active"} onClick={() => setFilter("active")} label={`Активные (${active.length})`} />
-              <FilterPill pressed={filter === "archive"} onClick={() => setFilter("archive")} label={`Архив (${archived.length})`} />
+              <FilterPill pressed={filter === "all"} onClick={() => setFilter("all")} label={`Все (${wishes.filter(w => !w.archived).length})`} />
+              <FilterPill pressed={filter === "purchases"} onClick={() => setFilter("purchases")} label={`Покупки (${wishes.filter(w => w.kind === "purchase" && !w.archived).length})`} />
+              <FilterPill pressed={filter === "trips"} onClick={() => setFilter("trips")} label={`Поездки (${wishes.filter(w => w.kind === "trip" && !w.archived).length})`} />
             </div>
             {homeItems.length === 0 ? (
               <Empty
@@ -422,7 +478,7 @@ export function WishlistApp() {
               <WishReorder
                 items={homeItems}
                 dragEnabled={!needle}
-                onOpen={(wish) => setOverlay({ kind: "edit", draft: draftFromWish(wish) })}
+                onOpen={(wish) => setOverlay({ kind: "view", wish })}
                 onArchive={(wish) => void setArchived(wish, !wish.archived)}
                 onDelete={(wish) => void deleteWish(wish)}
                 onReorder={(ids) => void reorder(ids)}
@@ -435,7 +491,7 @@ export function WishlistApp() {
           <ArchiveScreen
             items={[...archived].sort((a, b) => b.updatedAt - a.updatedAt)}
             onBack={() => setScreen("home")}
-            onOpen={(wish) => setOverlay({ kind: "edit", draft: draftFromWish(wish) })}
+            onOpen={(wish) => setOverlay({ kind: "view", wish })}
             onRestore={(wish) => void setArchived(wish, false)}
             onDelete={(wish) => void deleteWish(wish)}
           />
@@ -454,7 +510,12 @@ export function WishlistApp() {
           />
         ) : null}
 
-        {screen === "backups" ? (
+        {screen === "map" ? (
+          <div className="p-4">
+            <h1 className="mb-4 text-2xl font-semibold">Карта желаний</h1>
+            <CosmicMap wishes={wishes.filter(w => !w.archived)} onOpen={(wish) => setOverlay({ kind: "view", wish })} />
+          </div>
+        ) : null}
           <BackupsScreen
             count={wishes.length}
             onBack={() => setScreen("home")}
@@ -473,11 +534,25 @@ export function WishlistApp() {
       {screen === "home" ? (
         <nav className="dock glass">
           <DockButton current={screen === "home"} label="Хотелки" icon={<Bookmark className="size-5" />} onClick={() => setScreen("home")} />
+          <DockButton current={false} label="Карта" icon={<Bookmark className="size-5" />} onClick={() => setScreen("map")} />
+          <DockButton current={false} label="Подборки" icon={<Bookmark className="size-5" />} onClick={() => setScreen("collections")} />
           <DockButton current={false} label="Архив" icon={<Archive className="size-5" />} onClick={() => setScreen("archive")} />
-          <DockButton current={false} label="Резервные копии" icon={<ArrowUpDown className="size-5" />} onClick={() => setScreen("backups")} />
+          <DockButton current={false} label="Копии" icon={<ArrowUpDown className="size-5" />} onClick={() => setScreen("backups")} />
         </nav>
       ) : null}
 
+      {overlay?.kind === "view" ? (
+        <ViewSheet
+          wish={overlay.wish}
+          onClose={() => setOverlay(null)}
+          onEdit={() => setOverlay({ kind: "edit", draft: draftFromWish(overlay.wish) })}
+          onUpdate={(updated) => {
+            setWishes((curr) => curr.map((w) => (w.id === updated.id ? updated : w)));
+            setOverlay({ kind: "view", wish: updated });
+            void putWish(updated);
+          }}
+        />
+      ) : null}
       {overlay?.kind === "edit" ? (
         <EditorSheet draft={overlay.draft} onClose={() => setOverlay(null)} onSave={(draft) => void saveDraft(draft)} />
       ) : null}
@@ -1254,7 +1329,39 @@ function SideLink({
   );
 }
 
-function Empty({ text, hint }: { text: string; hint?: string }) {
+function CosmicMap({ wishes, onOpen }: { wishes: Wish[]; onOpen: (w: Wish) => void }) {
+  return (
+    <div className="relative h-[70dvh] overflow-hidden rounded-2xl" style={{ background: "radial-gradient(ellipse at center, #1a1030 0%, #0a0612 100%)" }}>
+      {wishes.map((wish, i) => {
+        const angle = (i / Math.max(wishes.length, 1)) * Math.PI * 2;
+        const r = 30 + (i % 5) * 20;
+        const x = 50 + Math.cos(angle) * r;
+        const y = 50 + Math.sin(angle) * r;
+        const size = 80 + (wish.priority === "high" || wish.priority === "critical" ? 30 : 0);
+        return (
+          <button
+            key={wish.id}
+            type="button"
+            className="absolute flex items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-md"
+            style={{
+              left: `${x}%`,
+              top: `${y}%`,
+              width: size,
+              height: size,
+              transform: "translate(-50%, -50%)",
+            }}
+            onClick={() => onOpen(wish)}
+          >
+            <div className="text-center text-xs">
+              <div className="font-medium">{wish.title.slice(0, 12)}</div>
+              {wish.price != null && <div>{formatMoney(wish.price, wish.currency)}</div>}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
   return (
     <div className="empty-card glass">
       <span className="orb">
@@ -1262,6 +1369,107 @@ function Empty({ text, hint }: { text: string; hint?: string }) {
       </span>
       <strong>{text}</strong>
       {hint ? <p>{hint}</p> : null}
+    </div>
+  );
+}
+
+function ViewSheet({
+  wish,
+  onClose,
+  onEdit,
+  onUpdate,
+}: {
+  wish: Wish;
+  onClose: () => void;
+  onEdit: () => void;
+  onUpdate: (wish: Wish) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [comment, setComment] = useState("");
+  const placeholder = wish.kind === "trip" ? "/placeholder-trip.svg" : "/placeholder-purchase.svg";
+  const progress = wish.targetAmount && wish.targetAmount > 0 ? Math.min(100, Math.round((wish.savedAmount / wish.targetAmount) * 100)) : 0;
+  const remaining = wish.targetAmount ? Math.max(0, wish.targetAmount - wish.savedAmount) : null;
+
+  function addSaving() {
+    const val = parseAmount(amount);
+    if (!val || val <= 0) {
+      toast.error("Введите сумму");
+      return;
+    }
+    const op = { id: crypto.randomUUID(), date: Date.now(), amount: val, comment: comment.trim() || undefined };
+    const next: Wish = {
+      ...wish,
+      savedAmount: wish.savedAmount + val,
+      savingsHistory: [...wish.savingsHistory, op],
+      updatedAt: Date.now(),
+    };
+    onUpdate(next);
+    setAdding(false);
+    setAmount("");
+    setComment("");
+    toast.success("Добавили накопление");
+  }
+
+  return (
+    <div className="sheet-root">
+      <button type="button" className="backdrop" aria-label="Закрыть" onClick={onClose} />
+      <div className="sheet rise" role="dialog" aria-modal="true" style={{ maxHeight: "90dvh", overflow: "auto" }}>
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <button type="button" className="icon-btn" onClick={onClose}><ChevronLeft className="size-5" /></button>
+          <h2 className="text-xl font-semibold">Хотелка</h2>
+          <button type="button" className="icon-btn" onClick={onEdit}><MoreHorizontal className="size-5" /></button>
+        </div>
+        <div className="relative mb-4 overflow-hidden rounded-2xl" style={{ aspectRatio: "16/9" }}>
+          <img
+            src={wish.image || placeholder}
+            alt=""
+            className="h-full w-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).src = placeholder; }}
+          />
+        </div>
+        <h1 className="text-2xl font-semibold">{wish.title}</h1>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <span className="chip">{wish.kind === "trip" ? "Поездка" : "Покупка"}</span>
+          <span className="chip">{wish.priority === "high" || wish.priority === "critical" ? "Высокий приоритет" : wish.priority === "medium" ? "Средний" : "Низкий"}</span>
+        </div>
+        {wish.price != null && <p className="mt-3 text-lg">{formatMoney(wish.price, wish.currency)}</p>}
+        {wish.deadline && <p className="text-muted">Дедлайн: {wish.deadline}</p>}
+        {wish.targetAmount != null && (
+          <div className="mt-4 glass rounded-xl p-3">
+            <div className="flex justify-between text-sm">
+              <span>Накоплено {formatMoney(wish.savedAmount, wish.currency)}</span>
+              <span>Осталось {remaining != null ? formatMoney(remaining, wish.currency) : "—"}</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full bg-gradient-to-r from-pink-400 to-purple-400" style={{ width: `${progress}%` }} />
+            </div>
+            <p className="mt-1 text-right text-sm">{progress}%</p>
+            {progress >= 100 && <p className="mt-1 text-center text-sm text-green-300">Цель достигнута</p>}
+            {!adding ? (
+              <button type="button" className="mt-2 text-sm underline" onClick={() => setAdding(true)}>Добавить сумму</button>
+            ) : (
+              <div className="mt-2 space-y-2">
+                <input className="field" placeholder="Сумма" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                <input className="field" placeholder="Комментарий" value={comment} onChange={(e) => setComment(e.target.value)} />
+                <button type="button" className="save" onClick={addSaving}>Добавить</button>
+              </div>
+            )}
+          </div>
+        )}
+        {wish.note && (
+          <div className="mt-4 glass rounded-xl p-3">
+            <p className="text-sm text-muted">Заметка</p>
+            <p className="mt-1 whitespace-pre-wrap">{wish.note}</p>
+          </div>
+        )}
+        {wish.kind === "trip" && (wish.countries.length || wish.cities.length) && (
+          <p className="mt-2 text-muted">{[...wish.countries, ...wish.cities].join(" · ")}</p>
+        )}
+        <button type="button" className="save mt-6" onClick={onEdit}>
+          <Check className="size-5" /> Редактировать
+        </button>
+      </div>
     </div>
   );
 }
