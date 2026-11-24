@@ -513,7 +513,11 @@ export function WishlistApp() {
         {screen === "map" ? (
           <div className="p-4">
             <h1 className="mb-4 text-2xl font-semibold">Карта желаний</h1>
-            <CosmicMap wishes={wishes.filter(w => !w.archived)} onOpen={(wish) => setOverlay({ kind: "view", wish })} />
+            <CosmicMap
+              wishes={wishes.filter((w) => !w.archived)}
+              collections={collections}
+              onOpen={(wish) => setOverlay({ kind: "view", wish })}
+            />
           </div>
         ) : null}
           <BackupsScreen
@@ -1329,39 +1333,288 @@ function SideLink({
   );
 }
 
-function CosmicMap({ wishes, onOpen }: { wishes: Wish[]; onOpen: (w: Wish) => void }) {
+function CosmicMap({
+  wishes,
+  collections,
+  onOpen,
+}: {
+  wishes: Wish[];
+  collections: Collection[];
+  onOpen: (w: Wish) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [view, setView] = useState(() => {
+    try {
+      const saved = localStorage.getItem("wishlist-map-view");
+      if (saved) return JSON.parse(saved) as { x: number; y: number; scale: number };
+    } catch {}
+    return { x: 0, y: 0, scale: 1 };
+  });
+  const [selected, setSelected] = useState<Wish | null>(null);
+  const [mode, setMode] = useState<"all" | "purchases" | "trips" | "priority" | "collections" | "savings">("all");
+  const [search, setSearch] = useState("");
+  const dragging = useRef(false);
+  const last = useRef({ x: 0, y: 0 });
+  const velocity = useRef({ x: 0, y: 0 });
+  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const lastDist = useRef(0);
+  const anim = useRef(0);
+
+  const filtered = useMemo(() => {
+    let list = wishes;
+    if (mode === "purchases") list = list.filter((w) => w.kind === "purchase");
+    if (mode === "trips") list = list.filter((w) => w.kind === "trip");
+    if (mode === "priority") list = list.filter((w) => w.priority === "high" || w.priority === "critical");
+    if (mode === "savings") list = list.filter((w) => w.targetAmount != null && w.savedAmount > 0);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((w) => w.title.toLowerCase().includes(q) || w.note.toLowerCase().includes(q));
+    }
+    return list;
+  }, [wishes, mode, search]);
+
+  // Simple cluster layout: groups by collectionId
+  const positions = useMemo(() => {
+    const groups = new Map<string | null, Wish[]>();
+    filtered.forEach((w) => {
+      const key = w.collectionId;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(w);
+    });
+    const pos = new Map<string, { x: number; y: number; size: number }>();
+    let gi = 0;
+    groups.forEach((list, cid) => {
+      const cx = Math.cos(gi * 1.7) * (180 + gi * 40);
+      const cy = Math.sin(gi * 1.7) * (180 + gi * 40);
+      list.forEach((w, i) => {
+        const ang = (i / Math.max(list.length, 1)) * Math.PI * 2;
+        const r = 40 + i * 18;
+        const size = 70 + (w.priority === "critical" ? 40 : w.priority === "high" ? 24 : 0) + (w.savedAmount > 0 ? 10 : 0);
+        pos.set(w.id, { x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r, size });
+      });
+      gi++;
+    });
+    return pos;
+  }, [filtered]);
+
+  useEffect(() => {
+    localStorage.setItem("wishlist-map-view", JSON.stringify(view));
+  }, [view]);
+
+  // Background stars canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const resize = () => {
+      const { width, height } = canvas.getBoundingClientRect();
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, width, height);
+      // Stars
+      for (let i = 0; i < 120; i++) {
+        const x = Math.random() * width;
+        const y = Math.random() * height;
+        const r = Math.random() * 1.4 + 0.3;
+        ctx.fillStyle = `rgba(255,255,255,${0.3 + Math.random() * 0.7})`;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Soft nebulae
+      const g1 = ctx.createRadialGradient(width * 0.3, height * 0.4, 0, width * 0.3, height * 0.4, 180);
+      g1.addColorStop(0, "rgba(120,80,180,0.18)");
+      g1.addColorStop(1, "transparent");
+      ctx.fillStyle = g1;
+      ctx.fillRect(0, 0, width, height);
+      const g2 = ctx.createRadialGradient(width * 0.7, height * 0.6, 0, width * 0.7, height * 0.6, 220);
+      g2.addColorStop(0, "rgba(80,120,200,0.12)");
+      g2.addColorStop(1, "transparent");
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, 0, width, height);
+    };
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+
+  function applyTransform(v = view) {
+    if (worldRef.current) {
+      worldRef.current.style.transform = `translate(${v.x}px, ${v.y}px) scale(${v.scale})`;
+    }
+  }
+
+  useEffect(() => {
+    applyTransform();
+  }, [view]);
+
+  function onPointerDown(e: React.PointerEvent) {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 1) {
+      dragging.current = true;
+      last.current = { x: e.clientX, y: e.clientY };
+      velocity.current = { x: 0, y: 0 };
+      cancelAnimationFrame(anim.current);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } else if (pointers.current.size === 2) {
+      const pts = [...pointers.current.values()];
+      lastDist.current = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    }
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 1 && dragging.current) {
+      const dx = e.clientX - last.current.x;
+      const dy = e.clientY - last.current.y;
+      last.current = { x: e.clientX, y: e.clientY };
+      velocity.current = { x: dx, y: dy };
+      setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
+    } else if (pointers.current.size === 2) {
+      const pts = [...pointers.current.values()];
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      if (lastDist.current > 0) {
+        const factor = dist / lastDist.current;
+        setView((v) => ({ ...v, scale: Math.min(3, Math.max(0.3, v.scale * factor)) }));
+      }
+      lastDist.current = dist;
+    }
+  }
+
+  function onPointerUp(e: React.PointerEvent) {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size === 0) {
+      dragging.current = false;
+      // inertia
+      const step = () => {
+        velocity.current.x *= 0.92;
+        velocity.current.y *= 0.92;
+        if (Math.abs(velocity.current.x) < 0.5 && Math.abs(velocity.current.y) < 0.5) return;
+        setView((v) => ({ ...v, x: v.x + velocity.current.x, y: v.y + velocity.current.y }));
+        anim.current = requestAnimationFrame(step);
+      };
+      anim.current = requestAnimationFrame(step);
+    } else if (pointers.current.size === 1) {
+      const remaining = [...pointers.current.values()][0];
+      last.current = remaining;
+      lastDist.current = 0;
+    }
+  }
+
+  function onWheel(e: React.WheelEvent) {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 0.89;
+    setView((v) => ({ ...v, scale: Math.min(3, Math.max(0.3, v.scale * factor)) }));
+  }
+
+  function onPlanetClick(wish: Wish, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (Math.abs(velocity.current.x) > 2 || Math.abs(velocity.current.y) > 2) return;
+    setSelected(wish);
+  }
+
+  const placeholder = (w: Wish) => (w.kind === "trip" ? "/placeholder-trip.svg" : "/placeholder-purchase.svg");
+
   return (
-    <div className="relative h-[70dvh] overflow-hidden rounded-2xl" style={{ background: "radial-gradient(ellipse at center, #1a1030 0%, #0a0612 100%)" }}>
-      {wishes.map((wish, i) => {
-        const angle = (i / Math.max(wishes.length, 1)) * Math.PI * 2;
-        const r = 30 + (i % 5) * 20;
-        const x = 50 + Math.cos(angle) * r;
-        const y = 50 + Math.sin(angle) * r;
-        const size = 80 + (wish.priority === "high" || wish.priority === "critical" ? 30 : 0);
-        return (
+    <div className="relative flex h-[calc(100dvh-140px)] flex-col overflow-hidden rounded-2xl" style={{ background: "#07040e" }}>
+      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
+      <div className="relative z-10 flex gap-2 overflow-x-auto p-2 text-xs">
+        {(["all", "purchases", "trips", "priority", "savings"] as const).map((m) => (
           <button
-            key={wish.id}
+            key={m}
             type="button"
-            className="absolute flex items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-md"
-            style={{
-              left: `${x}%`,
-              top: `${y}%`,
-              width: size,
-              height: size,
-              transform: "translate(-50%, -50%)",
-            }}
-            onClick={() => onOpen(wish)}
+            className={`rounded-full px-3 py-1 ${mode === m ? "bg-white text-black" : "bg-white/10 text-white"}`}
+            onClick={() => setMode(m)}
           >
-            <div className="text-center text-xs">
-              <div className="font-medium">{wish.title.slice(0, 12)}</div>
-              {wish.price != null && <div>{formatMoney(wish.price, wish.currency)}</div>}
-            </div>
+            {m === "all" ? "Все" : m === "purchases" ? "Покупки" : m === "trips" ? "Поездки" : m === "priority" ? "Приоритет" : "Накопления"}
           </button>
-        );
-      })}
+        ))}
+        <input
+          className="ml-auto rounded-full bg-white/10 px-3 py-1 text-white placeholder:text-white/50"
+          placeholder="Поиск"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+      <div
+        ref={containerRef}
+        className="relative flex-1 touch-none overflow-hidden"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onWheel={onWheel}
+      >
+        <div
+          ref={worldRef}
+          className="absolute left-1/2 top-1/2 origin-center"
+          style={{ willChange: "transform" }}
+        >
+          {filtered.map((wish) => {
+            const p = positions.get(wish.id);
+            if (!p) return null;
+            const prog = wish.targetAmount && wish.targetAmount > 0 ? Math.min(100, (wish.savedAmount / wish.targetAmount) * 100) : 0;
+            return (
+              <button
+                key={wish.id}
+                type="button"
+                className="absolute flex flex-col items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black/40 backdrop-blur-md"
+                style={{
+                  left: p.x,
+                  top: p.y,
+                  width: p.size,
+                  height: p.size,
+                  transform: "translate(-50%, -50%)",
+                  boxShadow: wish.priority === "critical" ? "0 0 20px rgba(255,120,80,0.6)" : wish.priority === "high" ? "0 0 14px rgba(180,140,255,0.45)" : "0 0 8px rgba(255,255,255,0.15)",
+                }}
+                onClick={(e) => onPlanetClick(wish, e)}
+              >
+                <img
+                  src={wish.image || placeholder(wish)}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover opacity-70"
+                  onError={(ev) => { (ev.target as HTMLImageElement).src = placeholder(wish); }}
+                />
+                <div className="relative z-10 px-1 text-center text-[10px] leading-tight text-white drop-shadow">
+                  <div className="font-medium">{wish.title.slice(0, 16)}</div>
+                  {wish.price != null && <div>{formatMoney(wish.price, wish.currency)}</div>}
+                  {prog > 0 && <div className="mt-0.5 h-1 overflow-hidden rounded bg-white/30"><div className="h-full bg-white" style={{ width: `${prog}%` }} /></div>}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {selected && (
+        <div className="absolute bottom-4 left-4 right-4 z-20 rounded-2xl bg-black/70 p-3 backdrop-blur-md">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <strong>{selected.title}</strong>
+              <div className="text-xs text-white/70">{selected.kind === "trip" ? "Поездка" : "Покупка"} · {selected.priority}</div>
+              {selected.price != null && <div className="text-sm">{formatMoney(selected.price, selected.currency)}</div>}
+              {selected.targetAmount != null && (
+                <div className="text-xs">Накоплено {formatMoney(selected.savedAmount, selected.currency)} / {formatMoney(selected.targetAmount, selected.currency)}</div>
+              )}
+            </div>
+            <button type="button" className="icon-btn" onClick={() => setSelected(null)}><X className="size-4" /></button>
+          </div>
+          <button type="button" className="mt-2 w-full rounded-xl bg-white py-2 text-sm text-black" onClick={() => { onOpen(selected); setSelected(null); }}>
+            Открыть
+          </button>
+        </div>
+      )}
     </div>
   );
 }
+
+function Empty({ text, hint }: { text: string; hint?: string }) {
   return (
     <div className="empty-card glass">
       <span className="orb">
