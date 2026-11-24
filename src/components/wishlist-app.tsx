@@ -520,6 +520,8 @@ export function WishlistApp() {
             />
           </div>
         ) : null}
+
+        {screen === "backups" ? (
           <BackupsScreen
             count={wishes.length}
             onBack={() => setScreen("home")}
