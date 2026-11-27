@@ -1,6 +1,15 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, Folder, Plus, Trash2, X } from "lucide-react";
-import { formatMoney, goodsWord } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
+
+function objectsLabel(count: number): string {
+  const abs = Math.abs(count) % 100;
+  const last = abs % 10;
+  if (abs > 10 && abs < 20) return "объектов";
+  if (last === 1) return "объект";
+  if (last >= 2 && last <= 4) return "объекта";
+  return "объектов";
+}
 import { emptyCollectionDraft } from "@/lib/draft";
 import {
   COLLECTION_COLORS,
@@ -116,7 +125,7 @@ export function CollectionsScreen({
           <div className="collection-hero-copy">
             <h2>{selected.title}</h2>
             <p>
-              {selectedWishes.length} {goodsWord(selectedWishes.length)}
+              {selectedWishes.length} {objectsLabel(selectedWishes.length)}
               {totals[0] ? ` · ~ ${formatMoney(totals[0][1], totals[0][0] as "RUB" | "USD" | "EUR")}` : ""}
             </p>
             {selected.description ? <p className="opacity-80">{selected.description}</p> : null}
@@ -236,7 +245,7 @@ export function CollectionsScreen({
                 <span className="wish-copy">
                   <strong>{collection.title}</strong>
                   <span className="wish-price">
-                    {count} {goodsWord(count)}
+                    {count} {objectsLabel(count)}
                   </span>
                 </span>
               </button>

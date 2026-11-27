@@ -2,12 +2,20 @@ import type { ReactNode } from "react";
 import { Archive, ArrowUpDown, Bookmark, Layers, Orbit } from "lucide-react";
 import type { Screen } from "@/types/wishlist";
 
-const ITEMS: { id: Screen; label: string; icon: ReactNode }[] = [
+type DockItem = { id: Screen; label: string; icon: ReactNode };
+
+const LIST: DockItem[] = [
   { id: "home", label: "Хотелки", icon: <Bookmark className="size-5" /> },
+  { id: "collections", label: "Подборки", icon: <Layers className="size-5" /> },
+  { id: "archive", label: "Архив", icon: <Archive className="size-5" /> },
+  { id: "backups", label: "Резервные копии", icon: <ArrowUpDown className="size-5" /> },
+];
+
+const MAP: DockItem[] = [
   { id: "map", label: "Карта", icon: <Orbit className="size-5" /> },
   { id: "collections", label: "Подборки", icon: <Layers className="size-5" /> },
   { id: "archive", label: "Архив", icon: <Archive className="size-5" /> },
-  { id: "backups", label: "Копии", icon: <ArrowUpDown className="size-5" /> },
+  { id: "backups", label: "Резервные копии", icon: <ArrowUpDown className="size-5" /> },
 ];
 
 export function AppDock({
@@ -17,15 +25,22 @@ export function AppDock({
   screen: Screen;
   onNavigate: (screen: Screen) => void;
 }) {
+  const items = screen === "map" ? MAP : LIST;
   const active = screen === "settings" ? "home" : screen;
   return (
     <nav className="dock glass" aria-label="Основная навигация">
-      {ITEMS.map((item) => (
+      {items.map((item) => (
         <button
           key={item.id}
           type="button"
           aria-current={active === item.id ? "page" : undefined}
-          onClick={() => onNavigate(item.id)}
+          onClick={() => {
+            if (screen === "home" && item.id === "home") {
+              onNavigate("map");
+              return;
+            }
+            onNavigate(item.id);
+          }}
         >
           {item.icon}
           <span>{item.label}</span>
@@ -44,6 +59,13 @@ export function SideNav({
   counts: { wishes: number; archive: number; collections: number };
   onNavigate: (screen: Screen) => void;
 }) {
+  const items: DockItem[] = [
+    LIST[0]!,
+    MAP[0]!,
+    LIST[1]!,
+    LIST[2]!,
+    LIST[3]!,
+  ];
   return (
     <aside className="side">
       <div className="topbar">
@@ -52,11 +74,11 @@ export function SideNav({
         </span>
         <div className="brand-copy">
           <strong>Wishlist</strong>
-          <small>Мои хотелки</small>
+          <small>Покупки, поездки и подборки</small>
         </div>
       </div>
       <nav>
-        {ITEMS.map((item) => {
+        {items.map((item) => {
           const count =
             item.id === "home"
               ? counts.wishes

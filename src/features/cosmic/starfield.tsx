@@ -24,7 +24,7 @@ export function Starfield() {
 
     function rebuild() {
       const rnd = mulberry32(SEED);
-      stars = Array.from({ length: 180 }, () => ({
+      stars = Array.from({ length: 260 }, () => ({
         x: rnd(),
         y: rnd(),
         r: 0.4 + rnd() * 1.6,
@@ -32,10 +32,10 @@ export function Starfield() {
         tw: rnd() * Math.PI * 2,
       }));
       nebulae = [
-        { x: 0.28, y: 0.35, r: 0.42, color: "rgba(120,60,180,0.22)" },
-        { x: 0.72, y: 0.55, r: 0.48, color: "rgba(90,40,140,0.18)" },
-        { x: 0.55, y: 0.22, r: 0.32, color: "rgba(180,70,140,0.14)" },
-        { x: 0.18, y: 0.72, r: 0.36, color: "rgba(50,80,180,0.12)" },
+        { x: 0.5, y: 0.42, r: 0.55, color: "rgba(140,70,210,0.28)" },
+        { x: 0.2, y: 0.2, r: 0.4, color: "rgba(90,40,160,0.22)" },
+        { x: 0.82, y: 0.18, r: 0.36, color: "rgba(180,80,160,0.16)" },
+        { x: 0.7, y: 0.75, r: 0.42, color: "rgba(60,40,140,0.2)" },
       ];
     }
 

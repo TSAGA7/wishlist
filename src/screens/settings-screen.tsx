@@ -11,6 +11,7 @@ export function SettingsScreen({
   onImport,
   onInstall,
   onBack,
+  onMap,
 }: {
   dark: boolean;
   currency: Currency;
@@ -20,6 +21,7 @@ export function SettingsScreen({
   onImport: () => void;
   onInstall: () => void;
   onBack: () => void;
+  onMap: () => void;
 }) {
   const [about, setAbout] = useState(false);
   return (
@@ -81,6 +83,10 @@ export function SettingsScreen({
             отдаёт. Копия JSON возвращает список, если очистите браузер.
           </p>
         ) : null}
+        <button type="button" className="row glass" onClick={onMap}>
+          <span className="grow">Карта желаний</span>
+          <ChevronRight className="size-4 shrink-0" />
+        </button>
         <button type="button" className="install-card glass" onClick={onInstall}>
           <span className="phone-badge">
             <Smartphone className="size-5" />

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bookmark, Search, Settings, SlidersHorizontal, X } from "lucide-react";
-import { computePlanetLayout, fitMapView } from "@/features/cosmic/layout";
+import { computePlanetLayout } from "@/features/cosmic/layout";
 import { CosmicPlanet } from "@/features/cosmic/planet";
 import { Starfield } from "@/features/cosmic/starfield";
 import { useMapViewport } from "@/features/cosmic/use-map-viewport";
@@ -23,24 +23,25 @@ export function CosmicMap({
   collections,
   onOpen,
   onSettings,
+  onHome,
   onPersistPositions,
 }: {
   wishes: Wish[];
   collections: Collection[];
   onOpen: (wish: Wish) => void;
   onSettings?: () => void;
+  onHome?: () => void;
   onPersistPositions?: (updates: Array<{ id: string; mapX: number; mapY: number }>) => void;
 }) {
   const [filter, setFilter] = useState<MapFilter>("all");
   const [query, setQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState<Wish | null>(null);
   const persisted = useRef(new Set<string>());
-  const fitted = useRef(false);
   const persistRef = useRef(onPersistPositions);
   persistRef.current = onPersistPositions;
-  const { view, setView, onPointerDown, onPointerMove, onPointerUp, onWheel, wasDrag } = useMapViewport();
+  const { view, onPointerDown, onPointerMove, onPointerUp, onWheel, wasDrag } = useMapViewport();
 
   const filtered = useMemo(() => {
     let list = wishes.filter((w) => !w.archived);
@@ -67,16 +68,6 @@ export function CosmicMap({
   );
 
   useEffect(() => {
-    if (fitted.current || !positions.size) return;
-    if (localStorage.getItem("wishlist-map-view")) {
-      fitted.current = true;
-      return;
-    }
-    setView(fitMapView(positions));
-    fitted.current = true;
-  }, [positions, setView]);
-
-  useEffect(() => {
     const persist = persistRef.current;
     if (!persist) return;
     const updates: Array<{ id: string; mapX: number; mapY: number }> = [];
@@ -96,7 +87,7 @@ export function CosmicMap({
       <Starfield />
 
       <header className="cosmic-topbar">
-        <div className="cosmic-brand">
+        <button type="button" className="cosmic-brand" onClick={onHome}>
           <span className="brand-mark" aria-hidden="true">
             <Bookmark className="size-4" />
           </span>
@@ -104,7 +95,7 @@ export function CosmicMap({
             <strong>Wishlist</strong>
             <small>Карта желаний</small>
           </div>
-        </div>
+        </button>
         <div className="cosmic-actions">
           <button
             type="button"
@@ -173,22 +164,37 @@ export function CosmicMap({
           className="cosmic-world"
           style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
         >
+          <span className="cosmic-moon moon-a" aria-hidden="true" />
+          <span className="cosmic-moon moon-b" aria-hidden="true" />
+          <span className="cosmic-moon moon-c" aria-hidden="true" />
           <svg className="cosmic-lines" aria-hidden="true">
-            {lines.map((ln, i) => (
-              <g key={i}>
-                <line
-                  x1={ln.x1 + 2500}
-                  y1={ln.y1 + 2500}
-                  x2={ln.x2 + 2500}
-                  y2={ln.y2 + 2500}
-                  stroke={ln.color}
-                  strokeWidth="1.6"
-                  strokeDasharray="4 6"
-                  opacity="0.65"
-                />
-                <circle cx={(ln.x1 + ln.x2) / 2 + 2500} cy={(ln.y1 + ln.y2) / 2 + 2500} r="2.2" fill={ln.color} />
-              </g>
-            ))}
+            {lines.map((ln, i) => {
+              const x1 = ln.x1 + 2500;
+              const y1 = ln.y1 + 2500;
+              const x2 = ln.x2 + 2500;
+              const y2 = ln.y2 + 2500;
+              const mx = (x1 + x2) / 2;
+              const my = (y1 + y2) / 2;
+              const dx = x2 - x1;
+              const dy = y2 - y1;
+              const len = Math.hypot(dx, dy) || 1;
+              const bend = 36 * (i % 2 === 0 ? 1 : -1);
+              const cx = mx + (-dy / len) * bend;
+              const cy = my + (dx / len) * bend;
+              return (
+                <g key={i}>
+                  <path
+                    d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`}
+                    fill="none"
+                    stroke={ln.color}
+                    strokeWidth="1.4"
+                    strokeDasharray="2 7"
+                    opacity="0.8"
+                  />
+                  <circle cx={cx} cy={cy} r="2.4" fill="#fff" opacity="0.85" />
+                </g>
+              );
+            })}
           </svg>
           {filtered.map((wish) => {
             const pose = positions.get(wish.id);

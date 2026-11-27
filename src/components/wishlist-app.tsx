@@ -88,6 +88,7 @@ export function WishlistApp() {
             collections={store.collections}
             onOpen={(wish) => setOverlay({ kind: "view", wish })}
             onSettings={() => setScreen("settings")}
+            onHome={() => setScreen("home")}
             onPersistPositions={(updates) => {
               updates.forEach((u) => {
                 const wish = store.wishes.find((w) => w.id === u.id);
@@ -143,6 +144,7 @@ export function WishlistApp() {
               onImport={() => fileRef.current?.click()}
               onInstall={() => setOverlay({ kind: "install" })}
               onBack={() => setScreen("home")}
+              onMap={() => setScreen("map")}
             />
           ) : null}
 

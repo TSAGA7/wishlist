@@ -38,7 +38,7 @@ export function ViewSheet({
   return (
     <div className="sheet-root">
       <button type="button" className="backdrop" aria-label="Закрыть" onClick={onClose} />
-      <div className="sheet rise" role="dialog" aria-modal="true" style={{ maxHeight: "92dvh", overflow: "auto" }}>
+      <div className="sheet wish-view rise" role="dialog" aria-modal="true">
         <div className="mb-2 flex items-start justify-between gap-3">
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Назад">
             <ChevronLeft className="size-5" />

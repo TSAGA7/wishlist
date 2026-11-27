@@ -22,7 +22,7 @@ export function useMapViewport() {
 
   const zoomAt = useCallback((clientX: number, clientY: number, factor: number, rect: DOMRect) => {
     setView((v) => {
-      const nextScale = Math.min(3, Math.max(0.28, v.scale * factor));
+      const nextScale = Math.min(2.4, Math.max(0.55, v.scale * factor));
       const ratio = nextScale / v.scale;
       const cx = clientX - rect.left - rect.width / 2;
       const cy = clientY - rect.top - rect.height / 2;

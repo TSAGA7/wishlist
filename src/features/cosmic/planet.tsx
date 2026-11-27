@@ -1,4 +1,4 @@
-import { Calendar, Flame, Plane, ShoppingBag, Target } from "lucide-react";
+import { Calendar, Flame, Plane, ShoppingBag } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { placeholderFor } from "@/services/paths";
 import type { PlanetPose } from "@/features/cosmic/layout";
@@ -10,11 +10,13 @@ function priorityLabel(wish: Wish): { text: string; hot: boolean } {
   return { text: "Низкий", hot: false };
 }
 
-function formatDeadline(value: string | null): string | null {
+function shortDate(value: string | null): string | null {
   if (!value) return null;
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString("ru-RU", { month: "long", year: "numeric" });
+  const month = d.toLocaleDateString("ru-RU", { month: "short" }).replace(".", "");
+  const label = month.charAt(0).toUpperCase() + month.slice(1);
+  return `${label} ${d.getFullYear()}`;
 }
 
 export function CosmicPlanet({
@@ -26,59 +28,40 @@ export function CosmicPlanet({
   pose: PlanetPose;
   onOpen: (wish: Wish) => void;
 }) {
-  const target = wish.targetAmount ?? wish.price;
-  const progress =
-    target && target > 0 ? Math.min(100, Math.round((wish.savedAmount / target) * 100)) : 0;
+  const goal = wish.targetAmount ?? wish.price;
+  const progress = goal && goal > 0 ? Math.min(100, Math.round((wish.savedAmount / goal) * 100)) : 0;
   const pri = priorityLabel(wish);
-  const deadline = formatDeadline(wish.deadline);
+  const deadline = shortDate(wish.deadline);
   const subtitle =
     wish.kind === "trip"
-      ? [...wish.cities, ...wish.countries].filter(Boolean).slice(0, 3).join(" · ") || wish.note.slice(0, 40)
-      : wish.note.slice(0, 40);
-  const img = wish.image || placeholderFor(wish.kind);
-  const showRing = wish.priority === "critical" || wish.priority === "high" || progress >= 70;
+      ? [...wish.cities, ...wish.countries].filter(Boolean).slice(0, 3).join(" · ")
+      : "";
+  const photo = wish.image || placeholderFor(wish.kind);
 
   return (
     <button
       type="button"
-      className={`cosmic-planet ${showRing ? "has-ring" : ""}`}
-      style={{
-        left: pose.x,
-        top: pose.y,
-        width: pose.size,
-        height: pose.size,
-      }}
-      onClick={(e) => {
-        e.stopPropagation();
+      className={`cosmic-planet ${pose.hero ? "is-hero" : ""}`}
+      style={{ left: pose.x, top: pose.y, width: pose.size, height: pose.size }}
+      onClick={(event) => {
+        event.stopPropagation();
         onOpen(wish);
       }}
     >
-      {showRing ? <span className="cosmic-planet-ring" aria-hidden="true" /> : null}
+      {pose.hero ? <span className="cosmic-planet-ring" aria-hidden="true" /> : null}
       <span className="cosmic-planet-orb">
-        <img src={img} alt="" className="cosmic-planet-photo" draggable={false} />
+        <img src={photo} alt="" className="cosmic-planet-photo" draggable={false} />
         <span className="cosmic-planet-shade" aria-hidden="true" />
-        <span className="cosmic-planet-glow" aria-hidden="true" />
         <span className="cosmic-planet-content">
-          <span className="cosmic-planet-top">
-            <span className="cosmic-planet-kind" aria-hidden="true">
-              {wish.kind === "trip" ? <Plane className="size-3" /> : <ShoppingBag className="size-3" />}
-            </span>
-            <span className={`cosmic-planet-priority ${pri.hot ? "hot" : ""}`}>
-              {pri.hot ? <Flame className="size-2.5" /> : <Target className="size-2.5" />}
-              {pri.text}
-            </span>
+          <span className="cosmic-planet-kind" aria-hidden="true">
+            {wish.kind === "trip" ? <Plane className="size-3.5" /> : <ShoppingBag className="size-3.5" />}
+          </span>
+          <span className={`cosmic-planet-priority ${pri.hot ? "hot" : ""}`}>
+            {pri.hot ? <Flame className="size-3" /> : <span className="dot" />}
+            {pri.text}
           </span>
           <strong className="cosmic-planet-title">{wish.title}</strong>
           {subtitle ? <span className="cosmic-planet-sub">{subtitle}</span> : null}
-          {target != null ? (
-            <span className="cosmic-planet-money">
-              {wish.savedAmount > 0
-                ? `${formatMoney(wish.savedAmount, wish.currency)} из ${formatMoney(target, wish.currency)}`
-                : formatMoney(target, wish.currency)}
-            </span>
-          ) : wish.price != null ? (
-            <span className="cosmic-planet-money">{formatMoney(wish.price, wish.currency)}</span>
-          ) : null}
           {progress > 0 ? (
             <span className="cosmic-planet-progress">
               <span className="track">
@@ -87,9 +70,21 @@ export function CosmicPlanet({
               <span className="pct">{progress}%</span>
             </span>
           ) : null}
+          {goal != null ? (
+            <span className="cosmic-planet-money">
+              {wish.targetAmount != null && wish.price != null && wish.targetAmount !== wish.price ? (
+                <>
+                  <b>{formatMoney(wish.price, wish.currency)}</b>
+                  <span>из {formatMoney(wish.targetAmount, wish.currency)}</span>
+                </>
+              ) : (
+                <b>{formatMoney(goal, wish.currency)}</b>
+              )}
+            </span>
+          ) : null}
           {deadline ? (
             <span className="cosmic-planet-deadline">
-              <Calendar className="size-2.5" /> {deadline}
+              <Calendar className="size-3" /> {deadline}
             </span>
           ) : null}
         </span>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Bell, Bookmark, Plus, Search, Settings } from "lucide-react";
 import { WishReorder } from "@/features/wishes/wish-card";
-import { formatMoney, goodsWord, type Currency } from "@/lib/money";
+import { formatMoney, type Currency } from "@/lib/money";
 import type { HomeFilter, Wish } from "@/types/wishlist";
 
 export function HomeScreen({
@@ -130,7 +130,7 @@ export function HomeScreen({
         )}
         <div className="hero-sum">{totals[0] ? formatMoney(totals[0].sum, totals[0].currency) : formatMoney(0, "RUB")}</div>
         <div className="hero-meta">
-          {homeItems.length} {goodsWord(homeItems.length)}
+          {homeItems.length} объектов
         </div>
         <div className="bars" data-idle={homeItems.every((w) => w.price == null) ? "true" : "false"} aria-hidden="true">
           {spark(homeItems).map((height, index) => (
