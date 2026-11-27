@@ -42,13 +42,13 @@
 html.light {
   --ink: #171a22;
   --muted: #5d6578;
-  --glass: rgba(255, 255, 255, 0.62);
-  --glass-strong: rgba(255, 255, 255, 0.78);
-  --stroke: rgba(22, 26, 40, 0.08);
-  --stroke-strong: rgba(22, 26, 40, 0.14);
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-strong: rgba(255, 255, 255, 0.88);
+  --stroke: rgba(22, 26, 40, 0.1);
+  --stroke-strong: rgba(22, 26, 40, 0.16);
   --shadow: 0 18px 40px rgba(40, 50, 80, 0.12);
-  --field: rgba(255, 255, 255, 0.55);
-  --dock: rgba(255, 255, 255, 0.72);
+  --field: rgba(255, 255, 255, 0.72);
+  --dock: rgba(255, 255, 255, 0.82);
   --color-fg: #171a22;
   --color-muted: #5d6578;
   --color-primary: #171a22;
@@ -56,6 +56,22 @@ html.light {
   --color-chip: rgba(23, 26, 34, 0.06);
   --color-chip-fg: #171a22;
   color-scheme: light;
+}
+
+/* Unlayered so it wins over @layer base / Tailwind utilities that fight light mode. */
+html.light,
+html.light body,
+html.light #root {
+  color: #171a22;
+}
+
+html.light .sheet,
+html.light .row,
+html.light .wish,
+html.light .search,
+html.light .cabinet,
+html.light .stage {
+  color: #171a22;
 }
 
 @layer base {
@@ -811,6 +827,13 @@ html.light .save {
   border-radius: 1rem;
 }
 
+.pop-portal {
+  position: fixed;
+  z-index: 90;
+  right: auto;
+  width: 11.5rem;
+}
+
 .pop button,
 .pop a {
   display: flex;
@@ -1284,6 +1307,11 @@ html.light .chip {
   background: rgba(18, 16, 32, 0.88);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(18px);
+}
+
+.wish-screen__menu--portal {
+  position: fixed;
+  z-index: 95;
 }
 
 .wish-screen__menu button {
@@ -1785,6 +1813,15 @@ html.light .chip {
   cursor: pointer;
 }
 
+.wish.wish-menu-open {
+  z-index: 60;
+  isolation: isolate;
+}
+
+.wish.wish-menu-open .pop {
+  z-index: 61;
+}
+
 .wish-selected {
   border-color: rgba(196, 181, 253, 0.55);
   box-shadow: 0 0 0 1px rgba(196, 181, 253, 0.35), var(--shadow);
@@ -1984,6 +2021,11 @@ html.light .chip {
   border-radius: 1.2rem;
 }
 
+.completed-modal {
+  background:
+    linear-gradient(180deg, rgba(92, 70, 120, 0.55), rgba(28, 22, 42, 0.92) 46%, rgba(20, 16, 32, 0.96)) !important;
+}
+
 .completed-modal__badge {
   display: grid;
   width: 3.2rem;
@@ -1992,6 +2034,10 @@ html.light .chip {
   border-radius: 1rem;
   background: linear-gradient(160deg, #f5e9ff 0%, #c4b5fd 45%, #7c5cff 100%);
   color: white;
+}
+
+.overlay-frame--center .overlay-backdrop {
+  background: rgba(6, 8, 16, 0.72);
 }
 
 .completed-modal__title {

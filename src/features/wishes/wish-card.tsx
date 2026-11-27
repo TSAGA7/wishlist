@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { createPortal } from "react-dom";
+import { Archive, Check, CheckCircle2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useDismissable } from "@/hooks/use-dismissable";
 import { formatMoney } from "@/lib/money";
 import { kindLabel } from "@/lib/kinds";
@@ -34,10 +35,34 @@ export function WishCard({
   priority?: boolean;
 }) {
   const [menu, setMenu] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useDismissable(menu, () => setMenu(false));
   const goal = wish.price ?? wish.targetAmount;
   const showSavings = wish.savingsEnabled && goal != null && goal > 0;
   const progress = showSavings ? Math.min(100, Math.round((wish.savedAmount / goal) * 100)) : 0;
+
+  useLayoutEffect(() => {
+    if (!menu || !triggerRef.current) {
+      setMenuPos(null);
+      return;
+    }
+    const place = () => {
+      const box = triggerRef.current?.getBoundingClientRect();
+      if (!box) return;
+      const width = 184;
+      const left = Math.min(Math.max(8, box.right - width), window.innerWidth - width - 8);
+      const top = Math.min(box.bottom + 6, window.innerHeight - 220);
+      setMenuPos({ top, left });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [menu]);
 
   return (
     <article
@@ -88,6 +113,7 @@ export function WishCard({
       {!selectMode ? (
         <div className="relative" onClick={(event) => event.stopPropagation()}>
           <button
+            ref={triggerRef}
             type="button"
             className="icon-btn"
             aria-label="Действия"
@@ -96,51 +122,60 @@ export function WishCard({
           >
             <MoreHorizontal className="size-5" />
           </button>
-          {menu ? (
-            <div ref={menuRef as React.RefObject<HTMLDivElement>} className="glass pop" role="menu">
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenu(false);
-                  onEdit();
-                }}
-              >
-                <Pencil className="size-4" /> Редактировать
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenu(false);
-                  onComplete();
-                }}
-              >
-                Исполнено
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenu(false);
-                  onArchive();
-                }}
-              >
-                В архив
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="text-danger"
-                onClick={() => {
-                  setMenu(false);
-                  onDelete();
-                }}
-              >
-                <Trash2 className="size-4" /> Удалить
-              </button>
-            </div>
-          ) : null}
+          {menu && menuPos
+            ? createPortal(
+                <div
+                  ref={menuRef as React.RefObject<HTMLDivElement>}
+                  className="glass pop pop-portal"
+                  role="menu"
+                  style={{ top: menuPos.top, left: menuPos.left }}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenu(false);
+                      onEdit();
+                    }}
+                  >
+                    <Pencil className="size-4" /> Редактировать
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenu(false);
+                      onComplete();
+                    }}
+                  >
+                    <CheckCircle2 className="size-4" /> Исполнено
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenu(false);
+                      onArchive();
+                    }}
+                  >
+                    <Archive className="size-4" /> В архив
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="text-danger"
+                    onClick={() => {
+                      setMenu(false);
+                      onDelete();
+                    }}
+                  >
+                    <Trash2 className="size-4" /> Удалить
+                  </button>
+                </div>,
+                document.body,
+              )
+            : null}
         </div>
       ) : null}
     </article>

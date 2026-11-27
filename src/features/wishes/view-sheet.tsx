@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Archive,
   Calendar,
@@ -62,7 +63,9 @@ function WishScreen({
 }) {
   const dismiss = useOverlayClose();
   const backRef = useRef<HTMLButtonElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const menuRef = useDismissable(menu, () => setMenu(false));
   const [imgFailed, setImgFailed] = useState(false);
   const [imgKey, setImgKey] = useState(0);
@@ -72,6 +75,19 @@ function WishScreen({
   useEffect(() => {
     backRef.current?.focus();
   }, []);
+
+  useLayoutEffect(() => {
+    if (!menu || !menuBtnRef.current) {
+      setMenuPos(null);
+      return;
+    }
+    const box = menuBtnRef.current.getBoundingClientRect();
+    const width = 192;
+    setMenuPos({
+      top: Math.min(box.bottom + 6, window.innerHeight - 180),
+      left: Math.min(Math.max(8, box.right - width), window.innerWidth - width - 8),
+    });
+  }, [menu]);
 
   return (
     <div className="wish-screen" role="dialog" aria-modal="true" aria-labelledby="wish-screen-title">
@@ -84,6 +100,7 @@ function WishScreen({
           {wish.title}
         </h2>
         <button
+          ref={menuBtnRef}
           type="button"
           className="wish-screen__icon"
           aria-label="Ещё"
@@ -92,40 +109,48 @@ function WishScreen({
         >
           <MoreHorizontal className="size-5" />
         </button>
-        {menu ? (
-          <div ref={menuRef as React.RefObject<HTMLDivElement>} className="wish-screen__menu" role="menu">
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMenu(false);
-                onEdit();
-              }}
-            >
-              <Pencil className="size-4" /> Редактировать
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMenu(false);
-                onArchive();
-              }}
-            >
-              <Archive className="size-4" /> Архивировать
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMenu(false);
-                onDelete();
-              }}
-            >
-              <Trash2 className="size-4" /> Удалить
-            </button>
-          </div>
-        ) : null}
+        {menu && menuPos
+          ? createPortal(
+              <div
+                ref={menuRef as React.RefObject<HTMLDivElement>}
+                className="wish-screen__menu wish-screen__menu--portal"
+                role="menu"
+                style={{ top: menuPos.top, left: menuPos.left, right: "auto" }}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenu(false);
+                    onEdit();
+                  }}
+                >
+                  <Pencil className="size-4" /> Редактировать
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenu(false);
+                    onArchive();
+                  }}
+                >
+                  <Archive className="size-4" /> Архивировать
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenu(false);
+                    onDelete();
+                  }}
+                >
+                  <Trash2 className="size-4" /> Удалить
+                </button>
+              </div>,
+              document.body,
+            )
+          : null}
       </header>
 
       <div className="wish-screen__body">
