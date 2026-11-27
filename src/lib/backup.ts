@@ -1,5 +1,5 @@
 import { currencyFromCode, type Currency } from "@/lib/money";
-import type { Collection, Priority, SavingOperation, Wish, WishKind } from "@/lib/wishlist-db";
+import type { Collection, Priority, SavingOperation, Wish, WishKind } from "@/types/wishlist";
 
 export interface BackupFile {
   version: 2;
@@ -83,6 +83,8 @@ function coerceWish(item: unknown, index: number): Wish | null {
     cities: Array.isArray(row.cities) ? row.cities.filter((c): c is string => typeof c === "string") : [],
     startDate: typeof row.startDate === "string" ? row.startDate : null,
     endDate: typeof row.endDate === "string" ? row.endDate : null,
+    mapX: typeof row.mapX === "number" && Number.isFinite(row.mapX) ? row.mapX : null,
+    mapY: typeof row.mapY === "number" && Number.isFinite(row.mapY) ? row.mapY : null,
     createdAt: typeof row.createdAt === "number" ? row.createdAt : now,
     updatedAt: typeof row.updatedAt === "number" ? row.updatedAt : now,
   };
