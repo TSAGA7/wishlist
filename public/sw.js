@@ -1,4 +1,4 @@
-const CACHE = "wishlist-shell-v4";
+const CACHE = "wishlist-shell-v5";
 const BASE = "/wishlist/";
 
 const PRECACHE = [
@@ -32,7 +32,7 @@ self.addEventListener("activate", (event) => {
 async function networkFirst(request) {
   const cache = await caches.open(CACHE);
   try {
-    const fresh = await fetch(request);
+    const fresh = await fetch(request, { cache: "reload" });
     if (fresh.ok) cache.put(request, fresh.clone());
     return fresh;
   } catch {

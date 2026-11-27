@@ -37,8 +37,14 @@ export function WishlistApp() {
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
     if (import.meta.env.PROD && "serviceWorker" in navigator) {
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
       const swUrl = `${import.meta.env.BASE_URL}sw.js`;
-      navigator.serviceWorker.register(swUrl).catch(() => undefined);
+      navigator.serviceWorker.register(swUrl).then((reg) => reg.update()).catch(() => undefined);
     }
   }, []);
 
