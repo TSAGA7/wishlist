@@ -1,15 +1,17 @@
-const CACHE = "wishlist-shell-v3";
+const CACHE = "wishlist-shell-v5";
+const BASE = "/wishlist/";
 
 const PRECACHE = [
-  "/wishlist/",
-  "/wishlist/index.html",
-  "/wishlist/placeholder-purchase.svg",
-  "/wishlist/placeholder-trip.svg",
-  "/wishlist/favicon.svg",
-  "/wishlist/icon-192.png",
-  "/wishlist/icon-512.png",
-  "/wishlist/icon-maskable-512.png",
-  "/wishlist/manifest.webmanifest",
+  BASE,
+  `${BASE}index.html`,
+  `${BASE}placeholder-purchase.svg`,
+  `${BASE}placeholder-trip.svg`,
+  `${BASE}favicon.svg`,
+  `${BASE}icon-192.png`,
+  `${BASE}icon-512.png`,
+  `${BASE}icon-maskable-512.png`,
+  `${BASE}apple-touch-icon.png`,
+  `${BASE}manifest.webmanifest`,
 ];
 
 self.addEventListener("install", (event) => {
@@ -30,11 +32,14 @@ self.addEventListener("activate", (event) => {
 async function networkFirst(request) {
   const cache = await caches.open(CACHE);
   try {
-    const fresh = await fetch(request);
+    const fresh = await fetch(request, { cache: "reload" });
     if (fresh.ok) cache.put(request, fresh.clone());
     return fresh;
   } catch {
-    const cached = (await cache.match(request)) || (await cache.match("/wishlist/")) || (await cache.match("/wishlist/index.html"));
+    const cached =
+      (await cache.match(request)) ||
+      (await cache.match(BASE)) ||
+      (await cache.match(`${BASE}index.html`));
     if (cached) return cached;
     return new Response("Нет сети — откройте Wishlist ещё раз, когда появится связь.", {
       status: 503,
@@ -61,18 +66,19 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/_server")) return;
+  if (!url.pathname.startsWith(BASE) && url.pathname !== "/wishlist") return;
 
   if (request.mode === "navigate") {
     event.respondWith(networkFirst(request));
     return;
   }
 
-  if (
-    url.pathname.startsWith("/assets/") ||
-    /\.(?:js|css|svg|png|webp|woff2|json|webmanifest)$/.test(url.pathname) ||
-    PRECACHE.includes(url.pathname)
-  ) {
+  const isAsset =
+    url.pathname.startsWith(`${BASE}assets/`) ||
+    PRECACHE.includes(url.pathname) ||
+    /\.(?:js|css|svg|png|webp|woff2|json|webmanifest)$/.test(url.pathname);
+
+  if (isAsset) {
     event.respondWith(cacheFirst(request));
   }
 });

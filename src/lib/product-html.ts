@@ -10,15 +10,20 @@ export interface ProductDraft {
 const EMPTY: ProductDraft = { title: null, price: null, currency: null, image: null };
 
 function decodeEntities(value: string): string {
+  const textarea = typeof document !== "undefined" ? document.createElement("textarea") : null;
+  if (textarea) {
+    textarea.innerHTML = value;
+    return textarea.value;
+  }
   return value
-    .replace(/&/g, "&")
+    .replace(/&nbsp;/g, " ")
     .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, num: string) => String.fromCodePoint(Number(num)))
-    .replace(/&nbsp;/g, " ")
-    .replace(/"/g, '"')
-    .replace(/'|&#39;/g, "'")
-    .replace(/</g, "<")
-    .replace(/>/g, ">");
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;|&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
 }
 
 function metaContent(html: string, key: string): string | null {
