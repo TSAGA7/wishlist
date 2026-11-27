@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { buildBackup, parseBackup } from "@/lib/backup";
+import { backupFileName, buildBackup, parseBackup } from "@/lib/backup";
 import { canonicalUrl } from "@/lib/draft";
 import { parseAmount, type Currency } from "@/lib/money";
 import { wishesWord } from "@/lib/money";
@@ -16,8 +16,10 @@ import {
   saveMapPositions,
   saveOrder,
   saveProfile,
+  saveSettings,
 } from "@/database/wishlist-db";
-import type { Collection, Wish, WishDraft } from "@/types/wishlist";
+import type { AppSettings, Collection, DockTab, ThemeMode, Wish, WishDraft } from "@/types/wishlist";
+import { DEFAULT_DOCK_ORDER } from "@/types/wishlist";
 
 export function useWishlist() {
   const [name, setName] = useState(DEFAULT_NAME);
@@ -26,6 +28,10 @@ export function useWishlist() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [ready, setReady] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+  const [settings, setSettings] = useState<AppSettings>({
+    theme: "system",
+    dockOrder: [...DEFAULT_DOCK_ORDER],
+  });
 
   useEffect(() => {
     let alive = true;
@@ -37,6 +43,7 @@ export function useWishlist() {
         setWishes(data.wishes);
         setCollections(data.collections);
         setMapReady(data.mapReady);
+        setSettings(data.settings);
         setReady(true);
       })
       .catch(() => {
@@ -71,6 +78,26 @@ export function useWishlist() {
     }
   }, []);
 
+  const changeTheme = useCallback(async (theme: ThemeMode) => {
+    setSettings((current) => ({ ...current, theme }));
+    try {
+      const next = await saveSettings({ theme });
+      setSettings(next);
+    } catch {
+      toast.error("Тема не сохранилась");
+    }
+  }, []);
+
+  const changeDockOrder = useCallback(async (dockOrder: DockTab[]) => {
+    setSettings((current) => ({ ...current, dockOrder }));
+    try {
+      const next = await saveSettings({ dockOrder });
+      setSettings(next);
+    } catch {
+      toast.error("Порядок вкладок не сохранился");
+    }
+  }, []);
+
   const saveDraft = useCallback(
     async (draft: WishDraft) => {
       const title = draft.title.trim();
@@ -83,7 +110,6 @@ export function useWishlist() {
         toast.error("Цена выглядит странно");
         return false;
       }
-      const target = parseAmount(draft.targetAmount);
       const saved = parseAmount(draft.savedAmount) || 0;
       const now = Date.now();
       const existing = draft.id ? wishes.find((wish) => wish.id === draft.id) : undefined;
@@ -99,12 +125,14 @@ export function useWishlist() {
         image: draft.image,
         priceAuto: draft.priceAuto && price != null,
         archived: draft.archived,
+        completed: draft.completed,
         order,
         collectionId: draft.collectionId,
         priority: draft.priority,
-        targetAmount: target,
+        savingsEnabled: draft.savingsEnabled,
+        targetAmount: draft.savingsEnabled ? price : existing?.targetAmount ?? null,
         savedAmount: Math.max(0, saved),
-        deadline: draft.deadline || null,
+        deadline: draft.savingsEnabled ? draft.deadline || null : existing?.deadline ?? null,
         savingsHistory: existing?.savingsHistory || [],
         countries: draft.countries
           .split(",")
@@ -116,6 +144,8 @@ export function useWishlist() {
           .filter(Boolean),
         startDate: draft.startDate || null,
         endDate: draft.endDate || null,
+        location: draft.location.trim().slice(0, 200),
+        eventDate: draft.eventDate || null,
         mapX: existing?.mapX ?? null,
         mapY: existing?.mapY ?? null,
         createdAt: existing?.createdAt ?? now,
@@ -153,13 +183,18 @@ export function useWishlist() {
   }, [wishes]);
 
   const setArchived = useCallback(
-    async (wish: Wish, archivedFlag: boolean) => {
-      const next = { ...wish, archived: archivedFlag, updatedAt: Date.now() };
+    async (wish: Wish, archivedFlag: boolean, completed = false) => {
+      const next = {
+        ...wish,
+        archived: archivedFlag,
+        completed: archivedFlag ? completed : false,
+        updatedAt: Date.now(),
+      };
       const previous = wishes;
       setWishes((current) => current.map((item) => (item.id === wish.id ? next : item)));
       try {
         await putWish(next);
-        toast(archivedFlag ? "В архиве" : "Снова в списке", {
+        toast(archivedFlag ? (completed ? "Исполнено — в архиве" : "В архиве") : "Снова в списке", {
           action: {
             label: "Отменить",
             onClick: () => {
@@ -168,6 +203,21 @@ export function useWishlist() {
             },
           },
         });
+      } catch {
+        setWishes(previous);
+        toast.error("Не получилось");
+      }
+    },
+    [wishes],
+  );
+
+  const setCompletedFlag = useCallback(
+    async (wish: Wish, completed: boolean) => {
+      const next = { ...wish, completed, archived: true, updatedAt: Date.now() };
+      const previous = wishes;
+      setWishes((current) => current.map((item) => (item.id === wish.id ? next : item)));
+      try {
+        await putWish(next);
       } catch {
         setWishes(previous);
         toast.error("Не получилось");
@@ -194,6 +244,48 @@ export function useWishlist() {
       } catch {
         setWishes(previous);
         toast.error("Не удалось удалить");
+      }
+    },
+    [wishes],
+  );
+
+  const deleteMany = useCallback(
+    async (ids: string[]) => {
+      const idSet = new Set(ids);
+      const previous = wishes;
+      const removed = wishes.filter((w) => idSet.has(w.id));
+      setWishes((current) => current.filter((item) => !idSet.has(item.id)));
+      try {
+        await Promise.all(removed.map((wish) => removeWish(wish.id)));
+        toast(`Удалили: ${removed.length}`);
+      } catch {
+        setWishes(previous);
+        toast.error("Не удалось удалить");
+      }
+    },
+    [wishes],
+  );
+
+  const archiveMany = useCallback(
+    async (ids: string[], completed = false) => {
+      const idSet = new Set(ids);
+      const previous = wishes;
+      const now = Date.now();
+      setWishes((current) =>
+        current.map((wish) =>
+          idSet.has(wish.id) ? { ...wish, archived: true, completed, updatedAt: now } : wish,
+        ),
+      );
+      try {
+        await Promise.all(
+          wishes
+            .filter((wish) => idSet.has(wish.id))
+            .map((wish) => putWish({ ...wish, archived: true, completed, updatedAt: now })),
+        );
+        toast(completed ? "Исполнено" : "В архиве");
+      } catch {
+        setWishes(previous);
+        toast.error("Не получилось");
       }
     },
     [wishes],
@@ -279,17 +371,18 @@ export function useWishlist() {
   );
 
   const exportJson = useCallback(() => {
-    const blob = new Blob([JSON.stringify(buildBackup(name, wishes, collections), null, 2)], {
-      type: "application/json",
-    });
+    const blob = new Blob(
+      [JSON.stringify(buildBackup(name, wishes, collections, { currency, settings }), null, 2)],
+      { type: "application/json" },
+    );
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "wishlist.json";
+    link.download = backupFileName(name);
     link.click();
     URL.revokeObjectURL(url);
-    toast.success("Файл с копией скачан");
-  }, [name, wishes, collections]);
+    toast.success("Данные скачаны");
+  }, [name, wishes, collections, currency, settings]);
 
   const importFile = useCallback(async (file: File) => {
     const text = await file.text();
@@ -301,30 +394,42 @@ export function useWishlist() {
       }
       return parsed;
     } catch {
-      toast.error("Файл не читается");
+      toast.error("Файл не читается или повреждён");
       return null;
     }
   }, []);
 
   const confirmImport = useCallback(
-    async (nextName: string | null, nextWishes: Wish[], nextCollections: Collection[]) => {
-      const previous = { name, wishes, collections };
+    async (
+      nextName: string | null,
+      nextWishes: Wish[],
+      nextCollections: Collection[],
+      nextSettings?: AppSettings,
+      nextCurrency?: Currency,
+    ) => {
+      const previous = { name, wishes, collections, settings, currency };
       if (nextName?.trim()) setName(nextName.trim());
       setWishes(nextWishes);
       setCollections(nextCollections);
+      if (nextSettings) setSettings(nextSettings);
+      if (nextCurrency) setCurrency(nextCurrency);
       try {
         await replaceWishlist(nextName, nextWishes, nextCollections);
+        if (nextSettings) await saveSettings(nextSettings);
+        if (nextCurrency) await saveProfile({ currency: nextCurrency });
         toast.success(`Список заменён: ${nextWishes.length} ${wishesWord(nextWishes.length)}`);
         return true;
       } catch {
         setName(previous.name);
         setWishes(previous.wishes);
         setCollections(previous.collections);
+        setSettings(previous.settings);
+        setCurrency(previous.currency);
         toast.error("Не удалось восстановить копию");
         return false;
       }
     },
-    [name, wishes, collections],
+    [name, wishes, collections, settings, currency],
   );
 
   return {
@@ -335,15 +440,21 @@ export function useWishlist() {
     currency,
     wishes,
     collections,
+    settings,
     active,
     archived,
     commitName,
     changeCurrency,
+    changeTheme,
+    changeDockOrder,
     saveDraft,
     upsertWish,
     persistMapPositions,
     setArchived,
+    setCompletedFlag,
     deleteWish,
+    deleteMany,
+    archiveMany,
     reorder,
     saveCollection,
     deleteCollection,

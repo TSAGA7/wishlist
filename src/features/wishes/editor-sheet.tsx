@@ -1,10 +1,24 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, Link2, Plane, ShoppingBag, X } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  CalendarDays,
+  Camera,
+  Check,
+  ImagePlus,
+  Link2,
+  MapPin,
+  Plane,
+  ShoppingBag,
+  Trash2,
+  UtensilsCrossed,
+  X,
+} from "lucide-react";
 import { OverlayFrame, useOverlayClose } from "@/components/overlay-frame";
+import { putPhoto, removePhoto } from "@/database/wishlist-db";
+import { Thumb } from "@/features/wishes/thumb";
 import { hostOf } from "@/lib/draft";
+import { kindLabel } from "@/lib/kinds";
 import { CURRENCIES, currencyLabel, type Currency } from "@/lib/money";
 import { parseProduct } from "@/lib/parse-product";
-import { Thumb } from "@/features/wishes/thumb";
 import type { Collection, Priority, WishDraft, WishKind } from "@/types/wishlist";
 
 const PRIORITIES: { id: Priority; label: string }[] = [
@@ -13,6 +27,14 @@ const PRIORITIES: { id: Priority; label: string }[] = [
   { id: "high", label: "Высокий" },
   { id: "critical", label: "Критичный" },
 ];
+
+const KIND_ICONS: Record<WishKind, typeof ShoppingBag> = {
+  purchase: ShoppingBag,
+  trip: Plane,
+  venue: UtensilsCrossed,
+  place: MapPin,
+  event: CalendarDays,
+};
 
 export function EditorSheet(props: {
   draft: WishDraft;
@@ -42,7 +64,7 @@ function EditorSheetBody({
   const [form, setForm] = useState(draft);
   const [parsing, setParsing] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const sheetRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const lastParsed = useRef("");
 
   async function pull(raw: string, force: boolean) {
@@ -58,7 +80,7 @@ function EditorSheetBody({
       const result = await parseProduct({ data: { url } });
       lastParsed.current = url;
       if (result.error) {
-        setStatus(result.error);
+        setStatus("Не удалось прочитать страницу. Можно заполнить вручную");
         return;
       }
       if (!result.title && result.price == null && !result.image) {
@@ -75,10 +97,6 @@ function EditorSheetBody({
           currency: result.currency && takePrice ? result.currency : current.currency,
           image: result.image && (force || !current.image) ? result.image : current.image,
           priceAuto: takePrice ? true : current.priceAuto,
-          targetAmount:
-            takePrice && !current.targetAmount.trim() && result.price != null
-              ? String(result.price)
-              : current.targetAmount,
         };
       });
       setStatus(hostOf(url) ? `Подтянули со страницы ${hostOf(url)}` : "Подтянули, что нашлось");
@@ -89,36 +107,32 @@ function EditorSheetBody({
     }
   }
 
-  function onHandleDown(event: ReactPointerEvent<HTMLDivElement>) {
-    const start = event.clientY;
-    const target = event.currentTarget;
-    target.setPointerCapture(event.pointerId);
-    const move = (ev: PointerEvent) => {
-      const dy = Math.max(0, ev.clientY - start);
-      if (sheetRef.current && window.innerWidth < 960) sheetRef.current.style.transform = `translateY(${dy}px)`;
-    };
-    const up = (ev: PointerEvent) => {
-      target.removeEventListener("pointermove", move);
-      target.removeEventListener("pointerup", up);
-      if (ev.clientY - start > 90) dismiss();
-      else if (sheetRef.current) sheetRef.current.style.transform = "";
-    };
-    target.addEventListener("pointermove", move);
-    target.addEventListener("pointerup", up);
+  async function onPickFile(file: File | undefined) {
+    if (!file || !file.type.startsWith("image/")) return;
+    try {
+      if (form.image?.startsWith("idb:")) await removePhoto(form.image);
+      const ref = await putPhoto(file);
+      setForm((current) => ({ ...current, image: ref }));
+      setStatus("Фотография добавлена");
+    } catch {
+      setStatus("Не удалось сохранить фотографию");
+    }
   }
 
-  function setKind(kind: WishKind) {
-    setForm((current) => ({ ...current, kind }));
+  async function clearImage() {
+    if (form.image?.startsWith("idb:")) await removePhoto(form.image);
+    setForm((current) => ({ ...current, image: null }));
   }
+
+  const showLink = form.kind === "purchase" || form.kind === "venue" || form.kind === "event";
 
   return (
     <div className="sheet-root">
       <button type="button" className="backdrop" aria-label="Закрыть" onClick={dismiss} />
-      <div ref={sheetRef} className="sheet rise" role="dialog" aria-modal="true" aria-labelledby="editor-title">
-        <div className="handle" onPointerDown={onHandleDown} />
+      <div className="sheet rise editor-sheet" role="dialog" aria-modal="true" aria-labelledby="editor-title">
         <div className="mb-3 flex items-center justify-between">
           <h2 id="editor-title" className="text-xl font-semibold">
-            {form.id ? "Редактировать" : form.kind === "trip" ? "Добавить поездку" : "Добавить покупку"}
+            {form.id ? "Редактировать" : `Добавить · ${kindLabel(form.kind)}`}
           </h2>
           <button type="button" className="icon-btn" aria-label="Закрыть" onClick={dismiss}>
             <X className="size-5" />
@@ -126,25 +140,36 @@ function EditorSheetBody({
         </div>
 
         <form
-          className="space-y-3"
+          className="editor-form space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
-            onSave(form);
+            onSave({
+              ...form,
+              savedAmount: form.savingsEnabled ? form.savedAmount || "0" : form.savedAmount || "0",
+            });
           }}
         >
-          <div className="segment wide">
-            <button type="button" aria-pressed={form.kind === "purchase"} onClick={() => setKind("purchase")}>
-              <ShoppingBag className="size-4" /> Покупка
-            </button>
-            <button type="button" aria-pressed={form.kind === "trip"} onClick={() => setKind("trip")}>
-              <Plane className="size-4" /> Поездка
-            </button>
+          <div className="kind-scroll">
+            {(Object.keys(KIND_ICONS) as WishKind[]).map((kind) => {
+              const Icon = KIND_ICONS[kind];
+              return (
+                <button
+                  key={kind}
+                  type="button"
+                  className="kind-chip"
+                  aria-pressed={form.kind === kind}
+                  onClick={() => setForm((current) => ({ ...current, kind }))}
+                >
+                  <Icon className="size-4" /> {kindLabel(kind)}
+                </button>
+              );
+            })}
           </div>
 
-          {form.kind === "purchase" ? (
+          {showLink ? (
             <label className="block">
               <span className="label">Ссылка</span>
-              <span className="flex gap-2">
+              <span className="link-row">
                 <span className="relative min-w-0 flex-1">
                   <Link2 className="pointer-events-none absolute top-3.5 left-3 size-4 opacity-60" />
                   <input
@@ -164,20 +189,10 @@ function EditorSheetBody({
                     }}
                     className="field url-field"
                   />
-                  {form.url ? (
-                    <button
-                      type="button"
-                      className="field-clear"
-                      aria-label="Очистить ссылку"
-                      onClick={() => setForm({ ...form, url: "" })}
-                    >
-                      <X className="size-4" />
-                    </button>
-                  ) : null}
                 </span>
                 <button
                   type="button"
-                  className="field w-auto px-4"
+                  className="find-btn"
                   disabled={parsing}
                   onClick={() => void pull(form.url, true)}
                 >
@@ -186,20 +201,6 @@ function EditorSheetBody({
               </span>
               <span className="mt-1 block min-h-5 text-sm text-muted">{status}</span>
             </label>
-          ) : null}
-
-          {form.title || form.image ? (
-            <div className="found glass">
-              <span className="thumb thumb-fallback">
-                <Thumb src={form.image} kind={form.kind} />
-              </span>
-              <span>
-                <strong>{form.title || "Без названия"}</strong>
-                <span className="block text-sm text-muted">
-                  {form.kind === "trip" ? "Поездка" : hostOf(form.url) ?? "Ссылка"}
-                </span>
-              </span>
-            </div>
           ) : null}
 
           <label className="block">
@@ -213,8 +214,42 @@ function EditorSheetBody({
             />
           </label>
 
-          <div className="grid grid-cols-[1fr_7.5rem] gap-2">
-            <label>
+          <div className="photo-block">
+            <span className="label">Фотография</span>
+            <div className="photo-preview glass">
+              <span className="thumb thumb-fallback photo-preview__img">
+                <Thumb src={form.image} kind={form.kind} priority />
+              </span>
+              <div className="photo-preview__actions">
+                <button type="button" className="find-btn" onClick={() => fileRef.current?.click()}>
+                  <ImagePlus className="size-4" /> {form.image ? "Изменить" : "Добавить"}
+                </button>
+                {form.image ? (
+                  <button type="button" className="icon-btn" aria-label="Удалить фото" onClick={() => void clearImage()}>
+                    <Trash2 className="size-4" />
+                  </button>
+                ) : (
+                  <span className="text-sm text-muted inline-flex items-center gap-1">
+                    <Camera className="size-3.5" /> или из ссылки
+                  </span>
+                )}
+              </div>
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                void onPickFile(file);
+              }}
+            />
+          </div>
+
+          <div className="price-row">
+            <label className="min-w-0 flex-1">
               <span className="label">{form.kind === "trip" ? "Бюджет" : "Цена"}</span>
               <input
                 inputMode="decimal"
@@ -224,7 +259,7 @@ function EditorSheetBody({
                 className="field tabular-nums"
               />
             </label>
-            <label>
+            <label className="currency-field">
               <span className="label">Валюта</span>
               <select
                 className="field"
@@ -242,11 +277,12 @@ function EditorSheetBody({
 
           <label className="block">
             <span className="label">Приоритет</span>
-            <div className="segment wide">
+            <div className="priority-row">
               {PRIORITIES.map((p) => (
                 <button
                   key={p.id}
                   type="button"
+                  className={`priority-chip priority-${p.id}`}
                   aria-pressed={form.priority === p.id}
                   onClick={() => setForm({ ...form, priority: p.id })}
                 >
@@ -256,42 +292,53 @@ function EditorSheetBody({
             </div>
           </label>
 
-          <div className="grid grid-cols-2 gap-2">
-            <label>
-              <span className="label">Цель накопления</span>
-              <input
-                inputMode="decimal"
-                className="field tabular-nums"
-                value={form.targetAmount}
-                placeholder={form.price || "0"}
-                onChange={(e) => setForm({ ...form, targetAmount: e.target.value })}
-              />
-            </label>
-            <label>
-              <span className="label">Уже накоплено</span>
-              <input
-                inputMode="decimal"
-                className="field tabular-nums"
-                value={form.savedAmount}
-                onChange={(e) => setForm({ ...form, savedAmount: e.target.value })}
-              />
-            </label>
-          </div>
+          <button
+            type="button"
+            className="switch"
+            role="switch"
+            aria-checked={form.savingsEnabled}
+            onClick={() =>
+              setForm((current) => ({
+                ...current,
+                savingsEnabled: !current.savingsEnabled,
+                savedAmount: current.savedAmount || "0",
+              }))
+            }
+          >
+            <span>Копить</span>
+            <span className="knob-track" data-on={form.savingsEnabled}>
+              <span className="knob" />
+            </span>
+          </button>
 
-          <label className="block">
-            <span className="label">Дедлайн</span>
-            <input
-              type="date"
-              className="field"
-              value={form.deadline}
-              onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-            />
-          </label>
+          {form.savingsEnabled ? (
+            <div className="savings-fields">
+              <label>
+                <span className="label">Уже накоплено</span>
+                <input
+                  inputMode="decimal"
+                  className="field tabular-nums"
+                  value={form.savedAmount}
+                  placeholder="0"
+                  onChange={(e) => setForm({ ...form, savedAmount: e.target.value })}
+                />
+              </label>
+              <label>
+                <span className="label">Срок</span>
+                <input
+                  type="date"
+                  className="field"
+                  value={form.deadline}
+                  onChange={(e) => setForm({ ...form, deadline: e.target.value })}
+                />
+              </label>
+            </div>
+          ) : null}
 
           {form.kind === "trip" ? (
             <>
-              <div className="grid grid-cols-2 gap-2">
-                <label>
+              <div className="price-row">
+                <label className="min-w-0 flex-1">
                   <span className="label">Страны</span>
                   <input
                     className="field"
@@ -300,7 +347,7 @@ function EditorSheetBody({
                     onChange={(e) => setForm({ ...form, countries: e.target.value })}
                   />
                 </label>
-                <label>
+                <label className="min-w-0 flex-1">
                   <span className="label">Города</span>
                   <input
                     className="field"
@@ -310,8 +357,8 @@ function EditorSheetBody({
                   />
                 </label>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <label>
+              <div className="price-row">
+                <label className="min-w-0 flex-1">
                   <span className="label">Начало</span>
                   <input
                     type="date"
@@ -320,7 +367,7 @@ function EditorSheetBody({
                     onChange={(e) => setForm({ ...form, startDate: e.target.value })}
                   />
                 </label>
-                <label>
+                <label className="min-w-0 flex-1">
                   <span className="label">Конец</span>
                   <input
                     type="date"
@@ -331,6 +378,30 @@ function EditorSheetBody({
                 </label>
               </div>
             </>
+          ) : null}
+
+          {form.kind === "venue" || form.kind === "place" ? (
+            <label className="block">
+              <span className="label">Адрес / локация</span>
+              <input
+                className="field"
+                value={form.location}
+                placeholder="Город, район или адрес"
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
+              />
+            </label>
+          ) : null}
+
+          {form.kind === "event" ? (
+            <label className="block">
+              <span className="label">Дата события</span>
+              <input
+                type="date"
+                className="field"
+                value={form.eventDate}
+                onChange={(e) => setForm({ ...form, eventDate: e.target.value })}
+              />
+            </label>
           ) : null}
 
           <label className="block">
@@ -350,16 +421,6 @@ function EditorSheetBody({
           </label>
 
           <label className="block">
-            <span className="label">URL изображения</span>
-            <input
-              className="field"
-              value={form.image ?? ""}
-              placeholder="https://"
-              onChange={(e) => setForm({ ...form, image: e.target.value.trim() || null })}
-            />
-          </label>
-
-          <label className="block">
             <span className="label">Заметка</span>
             <textarea
               value={form.note}
@@ -370,19 +431,6 @@ function EditorSheetBody({
               className="field"
             />
           </label>
-
-          <button
-            type="button"
-            className="switch"
-            role="switch"
-            aria-checked={form.archived}
-            onClick={() => setForm({ ...form, archived: !form.archived })}
-          >
-            <span>В архив</span>
-            <span className="knob-track" data-on={form.archived}>
-              <span className="knob" />
-            </span>
-          </button>
 
           <button type="submit" className="save">
             <Check className="size-5" /> Сохранить

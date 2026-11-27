@@ -204,12 +204,13 @@
 .cw-search {
   position: absolute;
   z-index: 25;
-  top: calc(max(14px, env(safe-area-inset-top)) + 112px);
+  top: calc(max(14px, env(safe-area-inset-top)) + 132px);
   left: calc(var(--cw-side, 0px) + 20px);
   right: 20px;
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-top: 10px;
   padding: 12px 15px;
   border: 1px solid var(--cw-border);
   border-radius: 17px;

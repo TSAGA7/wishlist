@@ -10,7 +10,6 @@ export function CosmicMap({
   showAdd = true,
   onOpen,
   onAdd,
-  onSettings,
   onPersistPositions,
 }: {
   wishes: Wish[];
@@ -19,7 +18,6 @@ export function CosmicMap({
   showAdd?: boolean;
   onOpen: (wish: Wish) => void;
   onAdd: () => void;
-  onSettings?: () => void;
   onPersistPositions?: (updates: Array<{ id: string; mapX: number; mapY: number }>, markReady: boolean) => void;
 }) {
   const persistRef = useRef(onPersistPositions);
@@ -31,7 +29,10 @@ export function CosmicMap({
     const visible = wishes.filter((wish) => !wish.archived);
     const cosmicWishes: CosmicWish[] = visible.map((wish) => {
       const pose = placed.get(wish.id) ?? { x: 50, y: 51, size: "hero" as const };
-      const subtitle = wish.kind === "trip" ? [...wish.cities, ...wish.countries].filter(Boolean).slice(0, 3).join(" · ") : "";
+      const subtitle =
+        wish.kind === "trip"
+          ? [...wish.cities, ...wish.countries].filter(Boolean).slice(0, 3).join(" · ")
+          : wish.location || "";
       return {
         id: wish.id,
         title: wish.title,
@@ -41,8 +42,9 @@ export function CosmicMap({
         currency: wish.currency,
         priority: wish.priority,
         savedAmount: wish.savedAmount,
-        targetAmount: wish.targetAmount,
-        deadline: wish.deadline,
+        targetAmount: wish.savingsEnabled ? wish.price ?? wish.targetAmount : null,
+        deadline: wish.savingsEnabled ? wish.deadline : null,
+        savingsEnabled: wish.savingsEnabled,
         subtitle: subtitle || undefined,
         x: pose.x,
         y: pose.y,
@@ -71,7 +73,6 @@ export function CosmicMap({
         if (source) onOpen(source);
       }}
       onAddWish={onAdd}
-      onOpenSettings={onSettings}
       onRetryImage={() => undefined}
     />
   );

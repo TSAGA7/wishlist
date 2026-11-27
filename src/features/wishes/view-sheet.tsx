@@ -1,10 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { Calendar, ChevronLeft, Coins, ExternalLink, MoreHorizontal, Pencil, Plane, ShoppingBag, Star } from "lucide-react";
+import {
+  Archive,
+  Calendar,
+  ChevronLeft,
+  Coins,
+  ExternalLink,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { OverlayFrame, useOverlayClose } from "@/components/overlay-frame";
+import { useDismissable } from "@/hooks/use-dismissable";
 import { SavingsPanel } from "@/features/savings/savings-panel";
-import { ImageFallback } from "@/features/wishes/thumb";
+import { ImageFallback, Thumb } from "@/features/wishes/thumb";
+import { kindLabel } from "@/lib/kinds";
 import { formatMoney } from "@/lib/money";
-import { placeholderFor } from "@/services/paths";
 import type { Wish } from "@/types/wishlist";
 
 function priorityLabel(wish: Wish): string {
@@ -25,6 +35,8 @@ export function ViewSheet(props: {
   wish: Wish;
   onClose: () => void;
   onEdit: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
   onUpdate: (wish: Wish) => void;
 }) {
   return (
@@ -37,19 +49,24 @@ export function ViewSheet(props: {
 function WishScreen({
   wish,
   onEdit,
+  onArchive,
+  onDelete,
   onUpdate,
 }: {
   wish: Wish;
   onClose: () => void;
   onEdit: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
   onUpdate: (wish: Wish) => void;
 }) {
   const dismiss = useOverlayClose();
   const backRef = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState(false);
+  const menuRef = useDismissable(menu, () => setMenu(false));
   const [imgFailed, setImgFailed] = useState(false);
   const [imgKey, setImgKey] = useState(0);
-  const deadline = formatDeadline(wish.deadline);
+  const deadline = wish.savingsEnabled ? formatDeadline(wish.deadline) : null;
   const cost = wish.price ?? wish.targetAmount;
 
   useEffect(() => {
@@ -76,7 +93,7 @@ function WishScreen({
           <MoreHorizontal className="size-5" />
         </button>
         {menu ? (
-          <div className="wish-screen__menu" role="menu">
+          <div ref={menuRef as React.RefObject<HTMLDivElement>} className="wish-screen__menu" role="menu">
             <button
               type="button"
               role="menuitem"
@@ -87,6 +104,26 @@ function WishScreen({
             >
               <Pencil className="size-4" /> Редактировать
             </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenu(false);
+                onArchive();
+              }}
+            >
+              <Archive className="size-4" /> Архивировать
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenu(false);
+                onDelete();
+              }}
+            >
+              <Trash2 className="size-4" /> Удалить
+            </button>
           </div>
         ) : null}
       </header>
@@ -94,7 +131,7 @@ function WishScreen({
       <div className="wish-screen__body">
         <div className="wish-screen__photo">
           {!wish.image ? (
-            <img src={placeholderFor(wish.kind)} alt="" />
+            <Thumb src={null} kind={wish.kind} className="wish-screen__photo-img" priority />
           ) : imgFailed ? (
             <ImageFallback
               kind={wish.kind}
@@ -104,23 +141,20 @@ function WishScreen({
               }}
             />
           ) : (
-            <img
+            <Thumb
               key={imgKey}
               src={wish.image}
-              alt=""
-              onError={() => setImgFailed(true)}
+              kind={wish.kind}
+              className="wish-screen__photo-img"
+              priority
             />
           )}
         </div>
 
         <h1 className="wish-screen__title">{wish.title}</h1>
         <div className="wish-screen__tags">
-          <span className="chip">
-            {wish.kind === "trip" ? <Plane className="size-3.5" /> : <ShoppingBag className="size-3.5" />}
-            {wish.kind === "trip" ? "Поездка" : "Покупка"}
-          </span>
+          <span className="chip">{kindLabel(wish.kind)}</span>
           <span className={`chip ${wish.priority === "high" || wish.priority === "critical" ? "chip-hot" : ""}`}>
-            <Star className="size-3.5" />
             {priorityLabel(wish)}
           </span>
         </div>
@@ -131,14 +165,32 @@ function WishScreen({
             <small>Стоимость</small>
             <strong>{cost != null ? formatMoney(cost, wish.currency) : "—"}</strong>
           </div>
-          <div className="wish-stat">
-            <Calendar className="size-4" />
-            <small>Дедлайн</small>
-            <strong>{deadline ?? "—"}</strong>
-          </div>
+          {wish.savingsEnabled && deadline ? (
+            <div className="wish-stat">
+              <Calendar className="size-4" />
+              <small>Срок</small>
+              <strong>{deadline}</strong>
+            </div>
+          ) : wish.eventDate ? (
+            <div className="wish-stat">
+              <Calendar className="size-4" />
+              <small>Дата</small>
+              <strong>{formatDeadline(wish.eventDate) ?? wish.eventDate}</strong>
+            </div>
+          ) : wish.location ? (
+            <div className="wish-stat">
+              <small>Локация</small>
+              <strong>{wish.location}</strong>
+            </div>
+          ) : (
+            <div className="wish-stat">
+              <small>Тип</small>
+              <strong>{kindLabel(wish.kind)}</strong>
+            </div>
+          )}
         </div>
 
-        <SavingsPanel wish={wish} onChange={onUpdate} always />
+        <SavingsPanel wish={wish} onChange={onUpdate} />
 
         {wish.note ? (
           <div className="wish-note">
@@ -148,22 +200,17 @@ function WishScreen({
         ) : null}
 
         {wish.kind === "trip" && (wish.countries.length || wish.cities.length) ? (
-          <p className="wish-screen__places">{[...wish.cities, ...wish.countries].join(" · ")}</p>
+          <div className="wish-screen__places">
+            {[...wish.cities, ...wish.countries].filter(Boolean).join(" · ")}
+          </div>
         ) : null}
 
         {wish.url ? (
           <a className="wish-screen__link" href={wish.url} target="_blank" rel="noreferrer">
-            <ExternalLink className="size-4" />
-            Открыть ссылку
+            <ExternalLink className="size-4" /> Открыть ссылку
           </a>
         ) : null}
       </div>
-
-      <footer className="wish-screen__foot">
-        <button type="button" className="save" onClick={onEdit}>
-          <Pencil className="size-5" /> Редактировать
-        </button>
-      </footer>
     </div>
   );
 }

@@ -1,45 +1,60 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { toast, Toaster } from "sonner";
-import { setTheme } from "@/components/theme-boot";
+import { readThemeMode, setTheme } from "@/components/theme-boot";
 import { UpdatePrompt } from "@/components/update-prompt";
 import { AppDock, SideNav } from "@/components/shell/app-dock";
 import { CollectionsScreen } from "@/features/collections/collections-screen";
 import { CosmicMap } from "@/features/cosmic/cosmic-map";
 import { AddChoiceSheet } from "@/features/wishes/add-choice-sheet";
+import { CompletedModal } from "@/features/wishes/completed-modal";
 import { EditorSheet } from "@/features/wishes/editor-sheet";
 import { ViewSheet } from "@/features/wishes/view-sheet";
+import { useAppHeight } from "@/hooks/use-app-height";
 import { useWishlist } from "@/hooks/use-wishlist";
 import { checkForUpdate, startUpdates } from "@/lib/app-update";
 import { draftFromWish, emptyWishDraft } from "@/lib/draft";
 import { wishesWord } from "@/lib/money";
 import { ArchiveScreen } from "@/screens/archive-screen";
-import { BackupsScreen } from "@/screens/backups-screen";
+import { CabinetScreen } from "@/screens/cabinet-screen";
 import { HomeFab, HomeScreen } from "@/screens/home-screen";
-import { SettingsScreen } from "@/screens/settings-screen";
-import type { Collection, HomeFilter, Screen, Wish, WishDraft, WishKind } from "@/types/wishlist";
+import type { Collection, HomeFilter, Screen, ThemeMode, Wish, WishDraft, WishKind } from "@/types/wishlist";
 
 type Overlay =
   | { kind: "edit"; draft: WishDraft }
   | { kind: "view"; wish: Wish }
   | { kind: "install" }
-  | { kind: "import"; name: string | null; wishes: Wish[]; collections: Collection[] }
+  | { kind: "import"; name: string | null; wishes: Wish[]; collections: Collection[]; currency?: Wish["currency"]; settings?: import("@/types/wishlist").AppSettings }
   | { kind: "add-choice" }
+  | { kind: "completed"; wishes: Wish[] }
+  | { kind: "confirm-delete"; wishes: Wish[] }
   | null;
 
 export function WishlistApp() {
+  useAppHeight();
   const store = useWishlist();
-  const [screen, setScreen] = useState<Screen>("map");
+  const firstTab = store.settings.dockOrder[0] ?? "home";
+  const [screen, setScreen] = useState<Screen>(firstTab);
+  const [bootedScreen, setBootedScreen] = useState(false);
   const [filter, setFilter] = useState<HomeFilter>("all");
   const [query, setQuery] = useState("");
   const [overlay, setOverlay] = useState<Overlay>(null);
-  const [dark, setDark] = useState(true);
+  const [theme, setThemeMode] = useState<ThemeMode>(readThemeMode());
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
     if (import.meta.env.PROD) startUpdates();
   }, []);
+
+  useEffect(() => {
+    if (!bootedScreen && store.ready) {
+      setScreen(store.settings.dockOrder[0] ?? "home");
+      setBootedScreen(true);
+    }
+  }, [store.ready, store.settings.dockOrder, bootedScreen]);
 
   async function handleCheckUpdate() {
     const result = await checkForUpdate();
@@ -47,8 +62,10 @@ export function WishlistApp() {
     if (result === "unsupported") toast("Обновление доступно в установленном приложении");
   }
 
-  function applyTheme(mode: "light" | "dark") {
+  function applyTheme(mode: ThemeMode) {
+    setThemeMode(mode);
     setDark(setTheme(mode));
+    void store.changeTheme(mode);
   }
 
   function openCreate(kind?: WishKind) {
@@ -67,11 +84,18 @@ export function WishlistApp() {
         name: parsed.name,
         wishes: parsed.wishes,
         collections: parsed.collections,
+        currency: parsed.currency,
+        settings: parsed.settings,
       });
     }
   }
 
-  const showDock = screen !== "settings";
+  function navigate(next: Screen) {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setScreen(next);
+  }
+
   const mapMode = screen === "map";
   const overlayOpen = overlay !== null;
 
@@ -91,16 +115,27 @@ export function WishlistApp() {
     };
   }, [overlayOpen]);
 
+  function requestComplete(wishes: Wish[]) {
+    if (!wishes.length) return;
+    setOverlay({ kind: "completed", wishes });
+  }
+
+  function requestDelete(wishes: Wish[]) {
+    if (!wishes.length) return;
+    setOverlay({ kind: "confirm-delete", wishes });
+  }
+
   return (
     <div className={`shell ${mapMode ? "shell-map" : ""} ${overlayOpen ? "shell-locked" : ""}`}>
       <SideNav
         screen={screen}
+        order={store.settings.dockOrder}
         counts={{
-          wishes: store.wishes.length,
+          wishes: store.wishes.filter((w) => !w.archived).length,
           archive: store.archived.length,
           collections: store.collections.length,
         }}
-        onNavigate={setScreen}
+        onNavigate={navigate}
       />
 
       {mapMode ? (
@@ -112,61 +147,84 @@ export function WishlistApp() {
             showAdd={!overlay}
             onOpen={(wish) => setOverlay({ kind: "view", wish })}
             onAdd={() => openCreate()}
-            onSettings={() => setScreen("settings")}
             onPersistPositions={store.persistMapPositions}
           />
         </div>
       ) : (
-        <div className={screen === "home" ? "stage" : "stage stage-plain"}>
+        <div className={`stage ${screen === "home" ? "" : "stage-plain"}`}>
           {screen === "home" ? (
             <HomeScreen
               name={store.name}
               wishes={store.wishes}
               query={query}
               filter={filter}
+              selectMode={selectMode}
+              selectedIds={selectedIds}
               onQuery={setQuery}
               onFilter={setFilter}
-              onSettings={() => setScreen("settings")}
               onOpen={(wish) => setOverlay({ kind: "view", wish })}
-              onArchive={(wish) => void store.setArchived(wish, !wish.archived)}
-              onDelete={(wish) => void store.deleteWish(wish)}
+              onEdit={(wish) => setOverlay({ kind: "edit", draft: draftFromWish(wish) })}
+              onComplete={(wish) => requestComplete([wish])}
+              onArchive={(wish) => void store.setArchived(wish, true, false)}
+              onDelete={(wish) => requestDelete([wish])}
               onReorder={(ids) => void store.reorder(ids)}
               onRename={(next) => void store.commitName(next)}
               onAdd={() => openCreate()}
+              onSelectMode={(value) => {
+                setSelectMode(value);
+                if (!value) setSelectedIds(new Set());
+              }}
+              onToggleSelect={(wish) => {
+                setSelectedIds((current) => {
+                  const next = new Set(current);
+                  if (next.has(wish.id)) next.delete(wish.id);
+                  else next.add(wish.id);
+                  return next;
+                });
+              }}
+              onSelectAll={() => {
+                setSelectedIds(new Set(store.wishes.filter((w) => !w.archived).map((w) => w.id)));
+              }}
+              onClearSelection={() => setSelectedIds(new Set())}
+              onBulkComplete={() => {
+                const selected = store.wishes.filter((w) => selectedIds.has(w.id));
+                requestComplete(selected);
+              }}
+              onBulkArchive={() => {
+                void store.archiveMany([...selectedIds], false).then(() => {
+                  setSelectMode(false);
+                  setSelectedIds(new Set());
+                });
+              }}
+              onBulkDelete={() => {
+                const selected = store.wishes.filter((w) => selectedIds.has(w.id));
+                requestDelete(selected);
+              }}
             />
           ) : null}
 
           {screen === "archive" ? (
             <ArchiveScreen
               items={[...store.archived].sort((a, b) => b.updatedAt - a.updatedAt)}
-              onBack={() => setScreen("home")}
               onOpen={(wish) => setOverlay({ kind: "view", wish })}
               onRestore={(wish) => void store.setArchived(wish, false)}
-              onDelete={(wish) => void store.deleteWish(wish)}
+              onToggleCompleted={(wish) => void store.setCompletedFlag(wish, !wish.completed)}
+              onDelete={(wish) => requestDelete([wish])}
             />
           ) : null}
 
-          {screen === "settings" ? (
-            <SettingsScreen
-              dark={dark}
+          {screen === "cabinet" ? (
+            <CabinetScreen
+              theme={theme}
               currency={store.currency}
+              dockOrder={store.settings.dockOrder}
               onTheme={applyTheme}
               onCurrency={(value) => void store.changeCurrency(value)}
+              onDockOrder={(order) => void store.changeDockOrder(order)}
               onExport={store.exportJson}
               onImport={() => fileRef.current?.click()}
               onInstall={() => setOverlay({ kind: "install" })}
               onCheckUpdate={() => void handleCheckUpdate()}
-              onBack={() => setScreen("home")}
-              onMap={() => setScreen("map")}
-            />
-          ) : null}
-
-          {screen === "backups" ? (
-            <BackupsScreen
-              count={store.wishes.length}
-              onBack={() => setScreen("home")}
-              onExport={store.exportJson}
-              onImport={() => fileRef.current?.click()}
             />
           ) : null}
 
@@ -174,18 +232,18 @@ export function WishlistApp() {
             <CollectionsScreen
               collections={store.collections}
               wishes={store.wishes}
-              onBack={() => setScreen("home")}
+              onBack={() => navigate("home")}
               onSave={store.saveCollection}
               onDelete={store.deleteCollection}
               onOpenWish={(wish) => setOverlay({ kind: "view", wish })}
             />
           ) : null}
 
-          {screen === "home" && !overlay ? <HomeFab onClick={() => openCreate()} /> : null}
+          {screen === "home" && !overlay && !selectMode ? <HomeFab onClick={() => openCreate()} /> : null}
         </div>
       )}
 
-      {showDock ? <AppDock screen={screen} onNavigate={setScreen} /> : null}
+      <AppDock screen={screen} order={store.settings.dockOrder} onNavigate={navigate} />
 
       {overlay?.kind === "add-choice" ? (
         <AddChoiceSheet
@@ -199,6 +257,11 @@ export function WishlistApp() {
           wish={overlay.wish}
           onClose={() => setOverlay(null)}
           onEdit={() => setOverlay({ kind: "edit", draft: draftFromWish(overlay.wish) })}
+          onArchive={() => {
+            void store.setArchived(overlay.wish, true, false);
+            setOverlay(null);
+          }}
+          onDelete={() => requestDelete([overlay.wish])}
           onUpdate={(updated) => {
             void store.upsertWish(updated);
             setOverlay({ kind: "view", wish: updated });
@@ -219,16 +282,51 @@ export function WishlistApp() {
         />
       ) : null}
 
+      {overlay?.kind === "completed" ? (
+        <CompletedModal
+          onClose={() => setOverlay(null)}
+          onArchive={() => {
+            const ids = overlay.wishes.map((w) => w.id);
+            void store.archiveMany(ids, true).then(() => {
+              setOverlay(null);
+              setSelectMode(false);
+              setSelectedIds(new Set());
+            });
+          }}
+          onDelete={() => setOverlay({ kind: "confirm-delete", wishes: overlay.wishes })}
+        />
+      ) : null}
+
       {overlay?.kind === "install" ? <InstallSheet onClose={() => setOverlay(null)} /> : null}
 
       {overlay?.kind === "import" ? (
         <ConfirmSheet
           title="Заменить список?"
           body={`В файле ${overlay.wishes.length} ${wishesWord(overlay.wishes.length)} и ${overlay.collections.length} подборок. Текущие данные на этом устройстве будут заменены.`}
+          confirmLabel="Заменить"
           onClose={() => setOverlay(null)}
           onConfirm={() => {
-            void store.confirmImport(overlay.name, overlay.wishes, overlay.collections).then((ok) => {
-              if (ok) setOverlay(null);
+            void store
+              .confirmImport(overlay.name, overlay.wishes, overlay.collections, overlay.settings, overlay.currency)
+              .then((ok) => {
+                if (ok) setOverlay(null);
+              });
+          }}
+        />
+      ) : null}
+
+      {overlay?.kind === "confirm-delete" ? (
+        <ConfirmSheet
+          title={overlay.wishes.length > 1 ? `Удалить ${overlay.wishes.length}?` : "Удалить желание?"}
+          body="Это действие можно будет отменить сразу после удаления."
+          confirmLabel="Удалить"
+          danger
+          onClose={() => setOverlay(null)}
+          onConfirm={() => {
+            void store.deleteMany(overlay.wishes.map((w) => w.id)).then(() => {
+              setOverlay(null);
+              setSelectMode(false);
+              setSelectedIds(new Set());
             });
           }}
         />
@@ -297,11 +395,15 @@ function InstallSheet({ onClose }: { onClose: () => void }) {
 function ConfirmSheet({
   title,
   body,
+  confirmLabel,
+  danger,
   onClose,
   onConfirm,
 }: {
   title: string;
   body: string;
+  confirmLabel: string;
+  danger?: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -311,8 +413,8 @@ function ConfirmSheet({
       <div className="sheet rise" role="dialog" aria-modal="true">
         <h2 className="text-xl font-semibold">{title}</h2>
         <p className="mt-2 text-muted">{body}</p>
-        <button type="button" className="save mt-4" onClick={onConfirm}>
-          Заменить
+        <button type="button" className={`save mt-4 ${danger ? "save-danger" : ""}`} onClick={onConfirm}>
+          {confirmLabel}
         </button>
         <button type="button" className="cancel" onClick={onClose}>
           Отмена

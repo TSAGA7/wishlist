@@ -3,21 +3,22 @@ import {
   Bookmark,
   CalendarDays,
   Compass,
+  MapPin,
   Plane,
   Plus,
   Search,
-  Settings2,
   ShoppingBag,
-  SlidersHorizontal,
+  UtensilsCrossed,
   X,
 } from "lucide-react";
 import { useMapViewport } from "@/features/cosmic/use-map-viewport";
+import type { WishKind } from "@/types/wishlist";
 import "./cosmic-wishlist.css";
 
 export type CosmicWish = {
   id: string;
   title: string;
-  kind: "purchase" | "trip";
+  kind: WishKind;
   image?: string | null;
   price?: number | null;
   currency?: string;
@@ -25,6 +26,7 @@ export type CosmicWish = {
   savedAmount?: number;
   targetAmount?: number | null;
   deadline?: string | null;
+  savingsEnabled?: boolean;
   subtitle?: string;
   x: number;
   y: number;
@@ -36,21 +38,29 @@ export type CosmicWishlistProps = {
   onOpenWish: (wish: CosmicWish) => void;
   onAddWish: () => void;
   onRetryImage?: (wish: CosmicWish) => void;
-  onOpenSettings?: () => void;
   subtitle?: string;
   className?: string;
   showAdd?: boolean;
 };
 
-type Filter = "all" | "purchases" | "trips" | "priority" | "savings";
+type Filter = "all" | "purchases" | "trips" | "venues" | "places" | "events";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "Все" },
   { id: "purchases", label: "Покупки" },
   { id: "trips", label: "Поездки" },
-  { id: "priority", label: "Приоритет" },
-  { id: "savings", label: "Накопления" },
+  { id: "venues", label: "Заведения" },
+  { id: "places", label: "Места" },
+  { id: "events", label: "События" },
 ];
+
+function KindIcon({ kind }: { kind: WishKind }) {
+  if (kind === "trip") return <Plane />;
+  if (kind === "venue") return <UtensilsCrossed />;
+  if (kind === "place") return <MapPin />;
+  if (kind === "event") return <CalendarDays />;
+  return <ShoppingBag />;
+}
 
 function money(value?: number | null, currency = "RUB"): string {
   if (value == null || !Number.isFinite(value)) return "";
@@ -133,7 +143,11 @@ function Planet({
   const priority = wish.size === "moon" ? "" : priorityLabel(wish.priority);
   const source = wish.image?.trim() ? wish.image.trim() : "";
   const image = source && !failed ? imageSrc(source, nonce) : "";
-  const showProgress = wish.size !== "moon" && progress != null && (wish.size === "hero" || wish.kind === "trip");
+  const showProgress =
+    wish.savingsEnabled !== false &&
+    wish.size !== "moon" &&
+    progress != null &&
+    (wish.size === "hero" || wish.kind === "trip");
 
   return (
     <div
@@ -163,12 +177,16 @@ function Planet({
             onError={() => setFailed(true)}
           />
         ) : (
-          <span className="cw-placeholder">{wish.kind === "trip" ? <Compass /> : <ShoppingBag />}</span>
+          <span className="cw-placeholder">
+            <KindIcon kind={wish.kind} />
+          </span>
         )}
         <span className="cw-shade" />
         <span className="cw-rim" />
       </span>
-      <span className="cw-type">{wish.kind === "trip" ? <Plane /> : <ShoppingBag />}</span>
+      <span className="cw-type">
+        <KindIcon kind={wish.kind} />
+      </span>
       {priority ? <span className={`cw-priority cw-priority--${wish.priority}`}>{priority}</span> : null}
       {wish.size === "moon" ? null : (
         <span className="cw-copy">
@@ -217,7 +235,6 @@ export default function CosmicWishlist({
   onOpenWish,
   onAddWish,
   onRetryImage,
-  onOpenSettings,
   subtitle = "Карта желаний",
   className = "",
   showAdd = true,
@@ -232,8 +249,9 @@ export default function CosmicWishlist({
     let list = wishes;
     if (filter === "purchases") list = list.filter((wish) => wish.kind === "purchase");
     if (filter === "trips") list = list.filter((wish) => wish.kind === "trip");
-    if (filter === "priority") list = list.filter((wish) => wish.priority === "high" || wish.priority === "critical");
-    if (filter === "savings") list = list.filter((wish) => (wish.targetAmount || 0) > 0);
+    if (filter === "venues") list = list.filter((wish) => wish.kind === "venue");
+    if (filter === "places") list = list.filter((wish) => wish.kind === "place");
+    if (filter === "events") list = list.filter((wish) => wish.kind === "event");
     const query = search.trim().toLocaleLowerCase("ru");
     return query ? list.filter((wish) => `${wish.title} ${wish.subtitle || ""}`.toLocaleLowerCase("ru").includes(query)) : list;
   }, [wishes, filter, search]);
@@ -260,40 +278,8 @@ export default function CosmicWishlist({
           <button type="button" aria-label="Поиск" aria-pressed={searchOpen} onClick={() => setSearchOpen((open) => !open)}>
             <Search />
           </button>
-          <button
-            type="button"
-            aria-label="Фильтры"
-            onClick={() => setFilter((current) => (current === "all" ? "priority" : "all"))}
-          >
-            <SlidersHorizontal />
-          </button>
-          <button type="button" aria-label="Настройки" onClick={onOpenSettings}>
-            <Settings2 />
-          </button>
         </div>
       </header>
-      {searchOpen ? (
-        <div className="cw-search">
-          <Search />
-          <input
-            autoFocus
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Найти желание..."
-            aria-label="Найти желание"
-          />
-          <button
-            type="button"
-            aria-label="Закрыть"
-            onClick={() => {
-              setSearch("");
-              setSearchOpen(false);
-            }}
-          >
-            <X />
-          </button>
-        </div>
-      ) : null}
       <nav className="cw-filters" aria-label="Фильтры карты">
         {FILTERS.map((item) => (
           <button
@@ -307,6 +293,23 @@ export default function CosmicWishlist({
           </button>
         ))}
       </nav>
+      {searchOpen ? (
+        <div className="cw-search">
+          <Search />
+          <input
+            autoFocus
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Найти желание..."
+            aria-label="Найти желание"
+          />
+          {search ? (
+            <button type="button" aria-label="Очистить" onClick={() => setSearch("")}>
+              <X />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <div
         ref={stageRef}
         className="cw-stage"

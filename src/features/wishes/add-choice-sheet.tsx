@@ -1,6 +1,15 @@
-import { ChevronRight, Plane, ShoppingBag, X } from "lucide-react";
+import { CalendarDays, ChevronRight, MapPin, Plane, ShoppingBag, UtensilsCrossed, X } from "lucide-react";
 import { OverlayFrame, useOverlayClose } from "@/components/overlay-frame";
+import { kindHint, kindLabel } from "@/lib/kinds";
 import type { WishKind } from "@/types/wishlist";
+
+const OPTIONS: { kind: WishKind; icon: typeof ShoppingBag }[] = [
+  { kind: "purchase", icon: ShoppingBag },
+  { kind: "trip", icon: Plane },
+  { kind: "venue", icon: UtensilsCrossed },
+  { kind: "place", icon: MapPin },
+  { kind: "event", icon: CalendarDays },
+];
 
 export function AddChoiceSheet({
   onClose,
@@ -26,26 +35,18 @@ function AddChoiceCard({ onPick }: { onPick: (kind: WishKind) => void }) {
           <X className="size-5" />
         </button>
       </div>
-      <button type="button" className="add-option" onClick={() => onPick("purchase")}>
-        <span className="add-option__icon">
-          <ShoppingBag />
-        </span>
-        <span className="add-option__copy">
-          <strong>Покупка</strong>
-          <small>Товар, гаджет, одежда и т.д.</small>
-        </span>
-        <ChevronRight className="add-option__chevron" />
-      </button>
-      <button type="button" className="add-option" onClick={() => onPick("trip")}>
-        <span className="add-option__icon">
-          <Plane />
-        </span>
-        <span className="add-option__copy">
-          <strong>Поездка</strong>
-          <small>Путешествие, маршрут, места</small>
-        </span>
-        <ChevronRight className="add-option__chevron" />
-      </button>
+      {OPTIONS.map(({ kind, icon: Icon }) => (
+        <button key={kind} type="button" className="add-option" onClick={() => onPick(kind)}>
+          <span className="add-option__icon">
+            <Icon />
+          </span>
+          <span className="add-option__copy">
+            <strong>{kindLabel(kind)}</strong>
+            <small>{kindHint(kind)}</small>
+          </span>
+          <ChevronRight className="add-option__chevron" />
+        </button>
+      ))}
     </div>
   );
 }

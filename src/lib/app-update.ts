@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Same idea as My World: a new service worker installs and waits.
+ * Same idea as My World / Fitapp: a new service worker installs and waits.
  * The open version keeps working until the user taps «Обновить».
  */
 export type UpdateState = { kind: "none" } | { kind: "ready" };
@@ -49,13 +49,21 @@ export function startUpdates(): void {
   started = true;
   const swUrl = `${import.meta.env.BASE_URL}sw.js`;
   navigator.serviceWorker.addEventListener("controllerchange", reloadOnce);
-  navigator.serviceWorker
-    .register(swUrl)
-    .then((reg) => {
-      watch(reg);
-      return reg.update();
-    })
-    .catch(() => undefined);
+
+  const register = () => {
+    navigator.serviceWorker
+      .register(swUrl, { scope: import.meta.env.BASE_URL || "./" })
+      .then((reg) => {
+        watch(reg);
+        return reg.update();
+      })
+      .catch(() => undefined);
+  };
+
+  // Defer registration so first paint is not blocked by SW setup.
+  if (document.readyState === "complete") register();
+  else window.addEventListener("load", register, { once: true });
+
   const check = () => {
     void registration?.update().catch(() => undefined);
   };

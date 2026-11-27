@@ -12,9 +12,11 @@ export function emptyWishDraft(currency: Currency, kind: WishKind = "purchase"):
     note: "",
     image: null,
     archived: false,
+    completed: false,
     priceAuto: false,
     priority: "medium",
     collectionId: null,
+    savingsEnabled: false,
     targetAmount: "",
     savedAmount: "0",
     deadline: "",
@@ -22,6 +24,8 @@ export function emptyWishDraft(currency: Currency, kind: WishKind = "purchase"):
     cities: "",
     startDate: "",
     endDate: "",
+    location: "",
+    eventDate: "",
   };
 }
 
@@ -36,16 +40,20 @@ export function draftFromWish(wish: Wish): WishDraft {
     note: wish.note,
     image: wish.image,
     archived: wish.archived,
+    completed: wish.completed,
     priceAuto: wish.priceAuto,
     priority: wish.priority,
     collectionId: wish.collectionId,
+    savingsEnabled: wish.savingsEnabled,
     targetAmount: wish.targetAmount == null ? "" : String(wish.targetAmount),
-    savedAmount: String(wish.savedAmount),
+    savedAmount: String(Number.isFinite(wish.savedAmount) ? wish.savedAmount : 0),
     deadline: wish.deadline || "",
     countries: wish.countries.join(", "),
     cities: wish.cities.join(", "),
     startDate: wish.startDate || "",
     endDate: wish.endDate || "",
+    location: wish.location || "",
+    eventDate: wish.eventDate || "",
   };
 }
 

@@ -1,31 +1,28 @@
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { X } from "lucide-react";
 import { toast } from "sonner";
+import { OverlayFrame, useOverlayClose } from "@/components/overlay-frame";
 import { formatMoney, parseAmount } from "@/lib/money";
 import type { SavingOperation, Wish } from "@/types/wishlist";
 
 export function SavingsPanel({
   wish,
   onChange,
-  editable = true,
-  always = false,
 }: {
   wish: Wish;
   onChange: (wish: Wish) => void;
-  editable?: boolean;
-  always?: boolean;
 }) {
   const [adding, setAdding] = useState(false);
-  const [amount, setAmount] = useState("");
-  const [comment, setComment] = useState("");
+  const goal = wish.price ?? wish.targetAmount;
+  if (!wish.savingsEnabled || goal == null || goal <= 0) return null;
 
-  const saved = Number.isFinite(wish.savedAmount) ? wish.savedAmount : 0;
-  const target = wish.targetAmount != null && Number.isFinite(wish.targetAmount) ? wish.targetAmount : null;
-  const progress = target && target > 0 ? Math.min(100, Math.round((saved / target) * 100)) : 0;
-  const remaining = target != null ? Math.max(0, target - saved) : null;
+  const saved = Number.isFinite(wish.savedAmount) ? Math.max(0, wish.savedAmount) : 0;
+  const progress = Math.min(100, Math.round((saved / goal) * 100));
+  const remaining = Math.max(0, goal - saved);
+  const deadline = formatDeadline(wish.deadline);
 
-  function addSaving() {
-    const val = parseAmount(amount);
+  function addSaving(raw: string) {
+    const val = parseAmount(raw);
     if (!val || val <= 0) {
       toast.error("Введите сумму");
       return;
@@ -34,7 +31,6 @@ export function SavingsPanel({
       id: crypto.randomUUID(),
       date: Date.now(),
       amount: val,
-      comment: comment.trim() || undefined,
     };
     onChange({
       ...wish,
@@ -43,38 +39,23 @@ export function SavingsPanel({
       updatedAt: Date.now(),
     });
     setAdding(false);
-    setAmount("");
-    setComment("");
-    toast.success("Добавили накопление");
-  }
-
-  function removeOp(op: SavingOperation) {
-    const nextHistory = wish.savingsHistory.filter((item) => item.id !== op.id);
-    const nextSaved = Math.max(
-      0,
-      nextHistory.reduce((sum, item) => sum + item.amount, 0),
-    );
-    onChange({
-      ...wish,
-      savingsHistory: nextHistory,
-      savedAmount: nextSaved,
-      updatedAt: Date.now(),
-    });
-    toast.success("Операция удалена");
-  }
-
-  if (!always && target == null && saved <= 0 && wish.savingsHistory.length === 0) {
-    return null;
+    toast.success("Сумма добавлена");
   }
 
   return (
-    <div className="savings glass rounded-xl p-3">
-      <div className="flex justify-between text-sm">
-        <span>Накоплено {formatMoney(saved, wish.currency)}</span>
-        <span>Осталось {remaining != null ? formatMoney(remaining, wish.currency) : "—"}</span>
-      </div>
-      {target != null ? (
-        <div className="mt-2 flex items-center gap-2">
+    <>
+      <div className="savings glass">
+        <div className="flex justify-between gap-3 text-sm">
+          <span>
+            Накоплено
+            <strong className="mt-0.5 block text-base">{formatMoney(saved, wish.currency)}</strong>
+          </span>
+          <span className="text-right">
+            Осталось
+            <strong className="mt-0.5 block text-base">{formatMoney(remaining, wish.currency)}</strong>
+          </span>
+        </div>
+        <div className="mt-3 flex items-center gap-2">
           <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
             <div
               className="h-full rounded-full"
@@ -86,59 +67,62 @@ export function SavingsPanel({
           </div>
           <span className="text-sm tabular-nums">{progress}%</span>
         </div>
+        {deadline ? <p className="mt-2 text-sm text-muted">Срок: {deadline}</p> : null}
+        {progress >= 100 ? <p className="mt-1 text-center text-sm text-green-300">Полностью накоплено</p> : null}
+        <button type="button" className="save mt-3" onClick={() => setAdding(true)}>
+          Добавить сумму
+        </button>
+      </div>
+      {adding ? (
+        <AddAmountModal
+          onClose={() => setAdding(false)}
+          onAdd={addSaving}
+        />
       ) : null}
-      {progress >= 100 ? <p className="mt-1 text-center text-sm text-green-300">Цель достигнута</p> : null}
+    </>
+  );
+}
 
-      {editable ? (
-        !adding ? (
-          <button type="button" className="mt-2 text-sm underline" onClick={() => setAdding(true)}>
-            Добавить сумму
-          </button>
-        ) : (
-          <div className="mt-2 space-y-2">
-            <input
-              className="field"
-              placeholder="Сумма"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-            <input
-              className="field"
-              placeholder="Комментарий"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-            />
-            <button type="button" className="save" onClick={addSaving}>
-              Добавить
-            </button>
-            <button type="button" className="cancel" onClick={() => setAdding(false)}>
-              Отмена
-            </button>
-          </div>
-        )
-      ) : null}
+function AddAmountModal({ onClose, onAdd }: { onClose: () => void; onAdd: (value: string) => void }) {
+  return (
+    <OverlayFrame onClose={onClose} variant="center">
+      <AddAmountCard onAdd={onAdd} />
+    </OverlayFrame>
+  );
+}
 
-      {wish.savingsHistory.length > 0 ? (
-        <ul className="mt-3 space-y-2">
-          {[...wish.savingsHistory].reverse().map((op) => (
-            <li key={op.id} className="flex items-center gap-2 text-sm">
-              <div className="min-w-0 flex-1">
-                <div className="font-medium tabular-nums">{formatMoney(op.amount, wish.currency)}</div>
-                <div className="text-muted">
-                  {new Date(op.date).toLocaleDateString("ru-RU")}
-                  {op.comment ? ` · ${op.comment}` : ""}
-                </div>
-              </div>
-              {editable ? (
-                <button type="button" className="icon-btn" aria-label="Удалить операцию" onClick={() => removeOp(op)}>
-                  <Trash2 className="size-4" />
-                </button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+function AddAmountCard({ onAdd }: { onAdd: (value: string) => void }) {
+  const dismiss = useOverlayClose();
+  const [amount, setAmount] = useState("");
+  return (
+    <div className="add-modal" role="dialog" aria-modal="true" aria-labelledby="add-amount-title">
+      <div className="add-modal__head">
+        <h2 id="add-amount-title">Добавить сумму</h2>
+        <button type="button" className="add-modal__close" aria-label="Закрыть" onClick={() => dismiss?.()}>
+          <X className="size-5" />
+        </button>
+      </div>
+      <input
+        className="field"
+        placeholder="Сумма"
+        inputMode="decimal"
+        autoFocus
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+      />
+      <button type="button" className="save mt-3" onClick={() => onAdd(amount)}>
+        Добавить
+      </button>
+      <button type="button" className="cancel" onClick={() => dismiss?.()}>
+        Отмена
+      </button>
     </div>
   );
+}
+
+function formatDeadline(value: string | null): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 }

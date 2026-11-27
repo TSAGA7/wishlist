@@ -1,6 +1,14 @@
 import Dexie, { type EntityTable } from "dexie";
 import type { Currency } from "@/lib/money";
-import type { Collection, Wish } from "@/types/wishlist";
+import { isWishKind } from "@/lib/kinds";
+import {
+  DEFAULT_DOCK_ORDER,
+  type AppSettings,
+  type Collection,
+  type DockTab,
+  type ThemeMode,
+  type Wish,
+} from "@/types/wishlist";
 
 export type { Collection, Priority, SavingOperation, Wish, WishKind } from "@/types/wishlist";
 
@@ -8,12 +16,22 @@ interface MetaRow {
   key: string;
   name?: string;
   currency?: Currency;
+  theme?: ThemeMode;
+  dockOrder?: DockTab[];
+}
+
+export interface PhotoRow {
+  id: string;
+  blob: Blob;
+  mime: string;
+  createdAt: number;
 }
 
 type WishlistDB = Dexie & {
   wishes: EntityTable<Wish, "id">;
   collections: EntityTable<Collection, "id">;
   meta: EntityTable<MetaRow, "key">;
+  photos: EntityTable<PhotoRow, "id">;
 };
 
 let db: WishlistDB | null = null;
@@ -72,6 +90,44 @@ function database(): WishlistDB {
           }
         }
       });
+    next
+      .version(4)
+      .stores({
+        wishes: "id, order, updatedAt, kind, collectionId, priority, archived, completed",
+        collections: "id, order",
+        meta: "key",
+        photos: "id, createdAt",
+      })
+      .upgrade(async (tx) => {
+        const wishes = await tx.table("wishes").toArray();
+        for (const w of wishes) {
+          const row = w as Partial<Wish> & { id: string };
+          const kind = isWishKind(row.kind) ? row.kind : "purchase";
+          const savedAmount = typeof row.savedAmount === "number" ? row.savedAmount : 0;
+          const targetAmount =
+            typeof row.targetAmount === "number" && Number.isFinite(row.targetAmount) ? row.targetAmount : null;
+          const hasSavings =
+            savedAmount > 0 ||
+            targetAmount != null ||
+            (Array.isArray(row.savingsHistory) && row.savingsHistory.length > 0) ||
+            Boolean(row.deadline);
+          await tx.table("wishes").update(row.id, {
+            kind,
+            completed: row.completed === true,
+            savingsEnabled: row.savingsEnabled === true || hasSavings,
+            location: typeof row.location === "string" ? row.location : "",
+            eventDate: typeof row.eventDate === "string" ? row.eventDate : null,
+          });
+        }
+        const settings = await tx.table("meta").get("settings");
+        if (!settings) {
+          await tx.table("meta").put({
+            key: "settings",
+            theme: "system",
+            dockOrder: [...DEFAULT_DOCK_ORDER],
+          });
+        }
+      });
     db = next;
   }
   return db;
@@ -80,14 +136,32 @@ function database(): WishlistDB {
 const DEFAULT_NAME = "Мои хотелки";
 
 function normalizeWish(wish: Wish): Wish {
+  const kind = isWishKind(wish.kind) ? wish.kind : "purchase";
   return {
     ...wish,
+    kind,
+    completed: wish.completed === true,
+    savingsEnabled: wish.savingsEnabled === true,
     mapX: wish.mapX ?? null,
     mapY: wish.mapY ?? null,
     savingsHistory: Array.isArray(wish.savingsHistory) ? wish.savingsHistory : [],
     countries: Array.isArray(wish.countries) ? wish.countries : [],
     cities: Array.isArray(wish.cities) ? wish.cities : [],
+    location: typeof wish.location === "string" ? wish.location : "",
+    eventDate: typeof wish.eventDate === "string" ? wish.eventDate : null,
+    savedAmount: Number.isFinite(wish.savedAmount) ? Math.max(0, wish.savedAmount) : 0,
   };
+}
+
+function normalizeDockOrder(value: unknown): DockTab[] {
+  const allowed = new Set<DockTab>(DEFAULT_DOCK_ORDER);
+  if (!Array.isArray(value)) return [...DEFAULT_DOCK_ORDER];
+  const rest = value.filter((item): item is DockTab => typeof item === "string" && allowed.has(item as DockTab) && item !== "home");
+  const unique = [...new Set(rest)];
+  for (const tab of DEFAULT_DOCK_ORDER) {
+    if (tab !== "home" && !unique.includes(tab)) unique.push(tab);
+  }
+  return ["home", ...unique.filter((tab) => tab !== "home")];
 }
 
 export async function loadWishlist(): Promise<{
@@ -96,24 +170,34 @@ export async function loadWishlist(): Promise<{
   wishes: Wish[];
   collections: Collection[];
   mapReady: boolean;
+  settings: AppSettings;
 }> {
   const store = database();
-  const [wishesRaw, collections, profile] = await Promise.all([
+  const [wishesRaw, collections, profile, settingsRow] = await Promise.all([
     store.wishes.toArray(),
     store.collections.toArray(),
     store.meta.get("profile"),
+    store.meta.get("settings"),
   ]);
   const wishes = wishesRaw.map(normalizeWish);
   wishes.sort((a, b) => a.order - b.order);
   collections.sort((a, b) => a.order - b.order);
   const currency = profile?.currency === "USD" || profile?.currency === "EUR" ? profile.currency : "RUB";
   const space = await store.meta.get("map-space");
+  const theme: ThemeMode =
+    settingsRow?.theme === "light" || settingsRow?.theme === "dark" || settingsRow?.theme === "system"
+      ? settingsRow.theme
+      : "system";
   return {
     name: profile?.name?.trim() || DEFAULT_NAME,
     currency,
     wishes,
     collections,
     mapReady: space?.name === "percent-v1",
+    settings: {
+      theme,
+      dockOrder: normalizeDockOrder(settingsRow?.dockOrder),
+    },
   };
 }
 
@@ -127,12 +211,34 @@ export async function saveProfile(patch: { name?: string; currency?: Currency })
   });
 }
 
+export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
+  const store = database();
+  const current = await store.meta.get("settings");
+  const next: AppSettings = {
+    theme:
+      patch.theme ??
+      (current?.theme === "light" || current?.theme === "dark" || current?.theme === "system" ? current.theme : "system"),
+    dockOrder: normalizeDockOrder(patch.dockOrder ?? current?.dockOrder),
+  };
+  await store.meta.put({
+    key: "settings",
+    theme: next.theme,
+    dockOrder: next.dockOrder,
+  });
+  return next;
+}
+
 export async function putWish(wish: Wish): Promise<void> {
   await database().wishes.put(normalizeWish(wish));
 }
 
 export async function removeWish(id: string): Promise<void> {
-  await database().wishes.delete(id);
+  const store = database();
+  const wish = await store.wishes.get(id);
+  await store.wishes.delete(id);
+  if (wish?.image?.startsWith("idb:")) {
+    await store.photos.delete(wish.image.slice(4)).catch(() => undefined);
+  }
 }
 
 export async function putCollection(collection: Collection): Promise<void> {
@@ -174,6 +280,28 @@ export async function saveCollectionOrder(ids: string[]): Promise<void> {
   await store.transaction("rw", store.collections, async () => {
     await Promise.all(ids.map((id, index) => store.collections.update(id, { order: index })));
   });
+}
+
+export async function putPhoto(blob: Blob, id = crypto.randomUUID()): Promise<string> {
+  const store = database();
+  await store.photos.put({
+    id,
+    blob,
+    mime: blob.type || "image/jpeg",
+    createdAt: Date.now(),
+  });
+  return `idb:${id}`;
+}
+
+export async function getPhotoBlob(ref: string): Promise<Blob | null> {
+  if (!ref.startsWith("idb:")) return null;
+  const row = await database().photos.get(ref.slice(4));
+  return row?.blob ?? null;
+}
+
+export async function removePhoto(ref: string | null): Promise<void> {
+  if (!ref?.startsWith("idb:")) return;
+  await database().photos.delete(ref.slice(4)).catch(() => undefined);
 }
 
 export async function replaceWishlist(
