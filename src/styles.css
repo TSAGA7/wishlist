@@ -358,14 +358,14 @@ html.light .badge {
   display: grid;
   width: min(26.5rem, calc(100% - 1rem));
   transform: translateX(-50%);
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   padding: 0.3rem;
   border-radius: 1.4rem;
 }
 
 .dock button {
   display: flex;
-  height: 3.35rem;
+  height: 3.55rem;
   min-width: 0;
   flex-direction: column;
   align-items: center;
@@ -373,7 +373,7 @@ html.light .badge {
   gap: 0.12rem;
   border-radius: 1.05rem;
   color: var(--muted);
-  font-size: 0.6rem;
+  font-size: 0.58rem;
   line-height: 1.1;
   text-align: center;
 }
@@ -381,8 +381,10 @@ html.light .badge {
 .dock button span {
   max-width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
 }
 
 .dock button[aria-current="page"] {

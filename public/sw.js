@@ -1,4 +1,4 @@
-const CACHE = "wishlist-shell-v5";
+const CACHE = "wishlist-shell-v6";
 const BASE = "/wishlist/";
 
 const PRECACHE = [

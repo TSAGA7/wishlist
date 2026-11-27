@@ -27,7 +27,7 @@ type Overlay =
 
 export function WishlistApp() {
   const store = useWishlist();
-  const [screen, setScreen] = useState<Screen>("home");
+  const [screen, setScreen] = useState<Screen>("map");
   const [filter, setFilter] = useState<HomeFilter>("all");
   const [query, setQuery] = useState("");
   const [overlay, setOverlay] = useState<Overlay>(null);
