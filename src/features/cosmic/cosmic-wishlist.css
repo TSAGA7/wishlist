@@ -1,0 +1,886 @@
+.cosmic-wishlist,
+.cosmic-wishlist * {
+  box-sizing: border-box;
+}
+
+.cosmic-wishlist {
+  --cw-ink: #fff8ff;
+  --cw-muted: rgba(244, 233, 255, 0.76);
+  --cw-border: rgba(255, 255, 255, 0.19);
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  color: var(--cw-ink);
+  font-family: Onest, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background:
+    radial-gradient(ellipse at 50% 43%, rgba(84, 44, 116, 0.35), transparent 42%),
+    radial-gradient(ellipse at 10% 12%, rgba(125, 62, 134, 0.34), transparent 38%),
+    radial-gradient(ellipse at 92% 80%, rgba(65, 75, 142, 0.3), transparent 35%),
+    linear-gradient(155deg, #100c20 0%, #080a19 46%, #0e0b20 100%);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.cw-nebula {
+  position: absolute;
+  z-index: -2;
+  inset: -15%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 36% 19% at 14% 20%, rgba(180, 91, 184, 0.28), transparent 72%),
+    radial-gradient(ellipse 28% 32% at 86% 26%, rgba(91, 103, 185, 0.27), transparent 72%),
+    radial-gradient(ellipse 42% 24% at 54% 88%, rgba(181, 89, 164, 0.2), transparent 70%),
+    radial-gradient(ellipse 25% 20% at 50% 53%, rgba(118, 74, 169, 0.17), transparent 75%);
+  filter: blur(35px);
+  animation: cw-drift 32s ease-in-out infinite alternate;
+}
+
+.cw-stars {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 22% 35%, rgba(167, 108, 201, 0.11), transparent 38%),
+    radial-gradient(ellipse at 75% 66%, rgba(94, 120, 190, 0.1), transparent 42%);
+}
+
+.cw-star {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 5px rgba(255, 226, 255, 0.8);
+  animation: cw-twinkle 4.8s ease-in-out infinite alternate;
+}
+
+.cw-header {
+  position: absolute;
+  z-index: 20;
+  top: max(14px, env(safe-area-inset-top));
+  left: calc(var(--cw-side, 0px) + clamp(18px, 4.8vw, 42px));
+  right: clamp(18px, 4.8vw, 42px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cw-brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+
+.cw-brand__icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 19px;
+  color: #fff;
+  background: linear-gradient(145deg, rgba(255, 207, 231, 0.88), rgba(173, 125, 255, 0.68) 55%, rgba(91, 92, 178, 0.75));
+  box-shadow:
+    0 8px 28px rgba(179, 111, 224, 0.28),
+    inset 0 1px 1px rgba(255, 255, 255, 0.65);
+}
+
+.cw-brand__icon svg {
+  width: 30px;
+  height: 30px;
+  stroke-width: 1.8;
+}
+
+.cw-brand > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cw-brand strong {
+  overflow: hidden;
+  font-size: clamp(19px, 5vw, 25px);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cw-brand small {
+  color: rgba(244, 232, 255, 0.75);
+  font-size: 13px;
+}
+
+.cw-actions {
+  display: flex;
+  gap: clamp(6px, 2vw, 15px);
+}
+
+.cw-actions button,
+.cw-filters button,
+.cw-zoom button,
+.cw-add,
+.cw-search button,
+.cw-retry {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.cw-actions button {
+  display: grid;
+  width: 43px;
+  height: 43px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  color: white;
+  background: rgba(34, 29, 54, 0.38);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.15),
+    0 5px 20px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+}
+
+.cw-actions svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 1.8;
+}
+
+.cw-filters {
+  position: absolute;
+  z-index: 20;
+  top: calc(max(14px, env(safe-area-inset-top)) + 70px);
+  left: calc(var(--cw-side, 0px) + clamp(18px, 4.8vw, 42px));
+  right: clamp(18px, 4.8vw, 42px);
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 6px 1px 9px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  mask-image: linear-gradient(to right, #000 0%, #000 94%, transparent 100%);
+}
+
+.cw-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.cw-filters button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.86);
+  background: rgba(31, 27, 49, 0.5);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.cw-filters button.active {
+  border-color: rgba(255, 255, 255, 0.9);
+  color: #292139;
+  background: linear-gradient(135deg, #fff, #eee5ff);
+  box-shadow: 0 3px 16px rgba(255, 255, 255, 0.17);
+  font-weight: 700;
+}
+
+.cw-search {
+  position: absolute;
+  z-index: 25;
+  top: calc(max(14px, env(safe-area-inset-top)) + 112px);
+  left: calc(var(--cw-side, 0px) + 20px);
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 15px;
+  border: 1px solid var(--cw-border);
+  border-radius: 17px;
+  background: rgba(22, 20, 39, 0.76);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.cw-search svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.cw-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: white;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.cw-search input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.cw-search button {
+  border: 0;
+  color: white;
+  background: transparent;
+}
+
+.cw-stage {
+  position: absolute;
+  z-index: 1;
+  top: calc(max(14px, env(safe-area-inset-top)) + 120px);
+  right: 0;
+  bottom: var(--cw-dock, calc(96px + env(safe-area-inset-bottom)));
+  left: var(--cw-side, 0px);
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  overscroll-behavior: none;
+}
+
+.cosmic-wishlist.has-search .cw-stage {
+  top: calc(max(14px, env(safe-area-inset-top)) + 176px);
+}
+
+.cw-stage:active {
+  cursor: grabbing;
+}
+
+.cw-world {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.cw-orbits {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.cw-orbits ellipse,
+.cw-orbits path {
+  fill: none;
+  stroke: url(#cw-orbit-gradient);
+  stroke-width: 1.15;
+  opacity: 0.68;
+  filter: drop-shadow(0 0 5px rgba(235, 164, 255, 0.8));
+}
+
+.cw-planet {
+  --planet-size: clamp(140px, 38vw, 196px);
+  position: absolute;
+  display: block;
+  width: var(--planet-size);
+  aspect-ratio: 1;
+  padding: 0;
+  overflow: visible;
+  transform: translate(-50%, -50%);
+  border: 0;
+  border-radius: 50%;
+  color: white;
+  text-align: left;
+  background: transparent;
+  isolation: isolate;
+  cursor: pointer;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.32));
+  animation: cw-float 8s ease-in-out infinite;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cw-planet--hero {
+  --planet-size: clamp(244px, 68vw, 360px);
+  z-index: 4;
+}
+
+.cw-planet--satellite {
+  --planet-size: clamp(142px, 40vw, 210px);
+  z-index: 3;
+}
+
+.cw-planet--moon {
+  --planet-size: clamp(80px, 23vw, 128px);
+  z-index: 2;
+}
+
+.cw-planet__surface {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  border: 1px solid rgba(255, 231, 255, 0.62);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 28% 18%, rgba(255, 232, 255, 0.36), transparent 35%),
+    radial-gradient(circle at 75% 80%, rgba(107, 110, 213, 0.68), transparent 56%),
+    linear-gradient(145deg, #b98bbd 0%, #5d477d 48%, #18274d 100%);
+  box-shadow:
+    inset 0 0 22px rgba(255, 255, 255, 0.28),
+    inset -18px -22px 36px rgba(8, 8, 29, 0.58),
+    inset 12px 10px 24px rgba(255, 216, 246, 0.18),
+    0 0 12px rgba(247, 190, 255, 0.55),
+    0 0 35px rgba(173, 114, 234, 0.35);
+}
+
+.cw-planet__surface img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0.94;
+  transform: scale(1.035);
+  filter: saturate(0.9) contrast(1.04);
+  pointer-events: none;
+}
+
+.cw-shade {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(ellipse at 30% 15%, rgba(255, 255, 255, 0.24), transparent 36%),
+    radial-gradient(ellipse at 70% 90%, rgba(4, 7, 28, 0.83), transparent 67%),
+    linear-gradient(180deg, rgba(12, 8, 30, 0.03) 20%, rgba(10, 8, 25, 0.12) 43%, rgba(7, 7, 24, 0.84) 100%);
+  box-shadow: inset -14px -10px 28px rgba(4, 4, 22, 0.42);
+  pointer-events: none;
+}
+
+.cw-rim {
+  position: absolute;
+  inset: 1px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: inherit;
+  box-shadow:
+    inset 3px 2px 10px rgba(255, 255, 255, 0.25),
+    inset -9px -8px 20px rgba(6, 5, 28, 0.42);
+  pointer-events: none;
+}
+
+.cw-planet__surface::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(
+    from 210deg,
+    transparent 0deg,
+    rgba(255, 202, 240, 0.52) 42deg,
+    transparent 105deg,
+    rgba(167, 196, 255, 0.35) 210deg,
+    transparent 280deg
+  );
+  mask: radial-gradient(circle, transparent 66%, #000 70%, #000 73%, transparent 77%);
+  opacity: 0.9;
+}
+
+.cw-planet__surface.is-placeholder {
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.45), transparent 26%),
+    radial-gradient(ellipse at 70% 80%, rgba(84, 126, 210, 0.8), transparent 56%),
+    linear-gradient(140deg, #b88bb7, #493d78 52%, #142444);
+}
+
+.cw-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.cw-placeholder svg {
+  width: 27%;
+  height: 27%;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.3));
+}
+
+.cw-type {
+  position: absolute;
+  z-index: 3;
+  top: 8%;
+  left: 8%;
+  display: grid;
+  width: clamp(30px, 10vw, 48px);
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 50%;
+  color: white;
+  background: rgba(48, 48, 79, 0.55);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.24),
+    0 4px 14px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(13px);
+  -webkit-backdrop-filter: blur(13px);
+  pointer-events: none;
+}
+
+.cw-type svg {
+  width: 52%;
+  height: 52%;
+  stroke-width: 1.8;
+}
+
+.cw-priority {
+  position: absolute;
+  z-index: 5;
+  top: 12%;
+  right: 8%;
+  max-width: 72%;
+  overflow: hidden;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: white;
+  background: rgba(75, 48, 65, 0.7);
+  box-shadow:
+    0 4px 15px rgba(0, 0, 0, 0.2),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.cw-planet--hero .cw-priority {
+  top: 15%;
+  right: 11%;
+  font-size: 12px;
+}
+
+.cw-planet[data-outer="left"] .cw-type {
+  left: auto;
+  right: 8%;
+}
+
+.cw-planet[data-outer="left"] .cw-priority {
+  top: 11%;
+  right: auto;
+  left: 7%;
+}
+
+.cw-planet--moon .cw-priority {
+  top: 8%;
+  right: 2%;
+  padding: 3px 6px;
+  font-size: 9px;
+}
+
+.cw-priority--medium {
+  background: rgba(112, 79, 48, 0.72);
+}
+
+.cw-priority--critical {
+  background: rgba(136, 48, 70, 0.78);
+}
+
+.cw-copy {
+  position: absolute;
+  z-index: 4;
+  right: 10%;
+  bottom: 11%;
+  left: 10%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.cw-copy strong {
+  display: -webkit-box;
+  width: 100%;
+  overflow: hidden;
+  color: white;
+  font-size: clamp(12px, 3.2vw, 16px);
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.025em;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.cw-planet--hero .cw-copy {
+  right: 12%;
+  bottom: 12%;
+  left: 12%;
+  gap: 6px;
+}
+
+.cw-planet--hero .cw-copy strong {
+  font-size: clamp(19px, 5.6vw, 28px);
+}
+
+.cw-copy b {
+  font-size: clamp(12px, 3.3vw, 16px);
+  font-weight: 650;
+}
+
+.cw-planet--hero .cw-copy b {
+  font-size: clamp(16px, 4.4vw, 22px);
+}
+
+.cw-copy > small {
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: clamp(10px, 2.8vw, 14px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cw-deadline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-size: clamp(9px, 2.5vw, 12px) !important;
+}
+
+.cw-deadline svg {
+  width: 13px;
+  height: 13px;
+}
+
+.cw-progress {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+}
+
+.cw-progress i {
+  display: block;
+  height: 7px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(25, 20, 47, 0.64);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.32);
+}
+
+.cw-progress em {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f8b9e8, #c6a3ff 70%, #a9bfff);
+  box-shadow: 0 0 10px rgba(225, 168, 255, 0.65);
+}
+
+.cw-progress small {
+  flex: 0 0 auto;
+  color: white;
+  font-size: 10px;
+}
+
+.cw-retry {
+  position: absolute;
+  z-index: 8;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  color: white;
+  background: rgba(24, 20, 42, 0.62);
+  backdrop-filter: blur(12px);
+  font-size: 23px;
+}
+
+.cw-tools {
+  display: contents;
+}
+
+.cw-zoom {
+  position: absolute;
+  z-index: 22;
+  top: 368px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  border-radius: 16px;
+  background: rgba(33, 28, 54, 0.48);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.2),
+    inset 0 1px 1px rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.cw-zoom button {
+  display: grid;
+  width: 38px;
+  height: 37px;
+  place-items: center;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  background: transparent;
+  font-size: 22px;
+}
+
+.cw-zoom button:last-child {
+  border-bottom: 0;
+}
+
+.cw-zoom svg {
+  width: 17px;
+  height: 17px;
+}
+
+.cw-add {
+  position: absolute;
+  z-index: 22;
+  right: clamp(18px, 5vw, 36px);
+  bottom: calc(var(--cw-dock, calc(96px + env(safe-area-inset-bottom))) + 10px);
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 50%;
+  color: #28203c;
+  background: linear-gradient(145deg, #fff, #e8d9ff 80%);
+  box-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.24),
+    0 0 24px rgba(233, 183, 255, 0.3),
+    inset 0 1px 1px white;
+}
+
+.cw-add svg {
+  width: 30px;
+  height: 30px;
+  stroke-width: 1.8;
+}
+
+.cw-empty {
+  position: absolute;
+  z-index: 12;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  width: min(78%, 300px);
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  transform: translate(-50%, -50%);
+  color: white;
+  text-align: center;
+  pointer-events: none;
+}
+
+.cw-empty span {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.cw-empty svg {
+  width: 26px;
+  height: 26px;
+}
+
+.cw-empty strong {
+  font-size: 17px;
+}
+
+.cw-empty small {
+  color: var(--cw-muted);
+  line-height: 1.5;
+}
+
+@keyframes cw-twinkle {
+  from {
+    transform: scale(0.72);
+    filter: brightness(0.75);
+  }
+  to {
+    transform: scale(1.22);
+    filter: brightness(1.35);
+  }
+}
+
+@keyframes cw-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -5px;
+  }
+}
+
+@keyframes cw-drift {
+  from {
+    transform: translate3d(-1.5%, -1%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(1.5%, 1%, 0) scale(1.04);
+  }
+}
+
+@media (min-width: 700px) {
+  .cw-header {
+    top: max(24px, env(safe-area-inset-top));
+  }
+
+  .cw-brand__icon {
+    width: 64px;
+    height: 64px;
+  }
+
+  .cw-brand strong {
+    font-size: 27px;
+  }
+
+  .cw-actions button {
+    width: 48px;
+    height: 48px;
+  }
+
+  .cw-filters {
+    top: calc(max(24px, env(safe-area-inset-top)) + 78px);
+    left: calc(var(--cw-side, 0px) + 34px);
+    right: 34px;
+  }
+
+  .cw-search {
+    top: calc(max(24px, env(safe-area-inset-top)) + 128px);
+    left: calc(var(--cw-side, 0px) + 34px);
+  }
+
+  .cw-stage {
+    top: calc(max(24px, env(safe-area-inset-top)) + 128px);
+    left: var(--cw-side, 0px);
+  }
+
+  .cosmic-wishlist.has-search .cw-stage {
+    top: calc(max(24px, env(safe-area-inset-top)) + 196px);
+  }
+
+  .cw-planet--hero {
+    --planet-size: clamp(300px, 36vw, 440px);
+  }
+
+  .cw-planet--satellite {
+    --planet-size: clamp(190px, 21vw, 250px);
+  }
+
+  .cw-planet--moon {
+    --planet-size: clamp(100px, 12vw, 150px);
+  }
+
+  .cw-zoom {
+    top: 448px;
+    right: 22px;
+  }
+
+  .cw-add {
+    width: 70px;
+    height: 70px;
+  }
+}
+
+@media (max-width: 390px) {
+  .cw-brand__icon {
+    width: 51px;
+    height: 51px;
+    border-radius: 16px;
+  }
+
+  .cw-brand strong {
+    font-size: 19px;
+  }
+
+  .cw-brand small {
+    font-size: 11px;
+  }
+
+  .cw-actions button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .cw-actions {
+    gap: 5px;
+  }
+
+  .cw-filters {
+    top: calc(max(14px, env(safe-area-inset-top)) + 64px);
+  }
+
+  .cw-stage {
+    top: calc(max(14px, env(safe-area-inset-top)) + 110px);
+  }
+
+  .cosmic-wishlist.has-search .cw-stage {
+    top: calc(max(14px, env(safe-area-inset-top)) + 168px);
+  }
+
+  .cw-planet--hero {
+    --planet-size: clamp(226px, 65vw, 280px);
+  }
+
+  .cw-planet--satellite {
+    --planet-size: clamp(130px, 37vw, 158px);
+  }
+
+  .cw-copy {
+    bottom: 9%;
+  }
+
+  .cw-add {
+    width: 58px;
+    height: 58px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cw-star,
+  .cw-planet,
+  .cw-nebula {
+    animation: none !important;
+  }
+}

@@ -95,6 +95,7 @@ export async function loadWishlist(): Promise<{
   currency: Currency;
   wishes: Wish[];
   collections: Collection[];
+  mapReady: boolean;
 }> {
   const store = database();
   const [wishesRaw, collections, profile] = await Promise.all([
@@ -106,11 +107,13 @@ export async function loadWishlist(): Promise<{
   wishes.sort((a, b) => a.order - b.order);
   collections.sort((a, b) => a.order - b.order);
   const currency = profile?.currency === "USD" || profile?.currency === "EUR" ? profile.currency : "RUB";
+  const space = await store.meta.get("map-space");
   return {
     name: profile?.name?.trim() || DEFAULT_NAME,
     currency,
     wishes,
     collections,
+    mapReady: space?.name === "percent-v1",
   };
 }
 
@@ -145,6 +148,18 @@ export async function removeCollection(id: string): Promise<void> {
       await store.wishes.update(w.id, { collectionId: null });
     }
   });
+}
+
+export async function saveMapPositions(updates: Array<{ id: string; mapX: number; mapY: number }>): Promise<void> {
+  if (!updates.length) return;
+  const store = database();
+  await store.transaction("rw", store.wishes, async () => {
+    await Promise.all(updates.map((update) => store.wishes.update(update.id, { mapX: update.mapX, mapY: update.mapY })));
+  });
+}
+
+export async function markMapSpace(): Promise<void> {
+  await database().meta.put({ key: "map-space", name: "percent-v1" });
 }
 
 export async function saveOrder(ids: string[]): Promise<void> {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { setTheme } from "@/components/theme-boot";
 import { AppDock, SideNav } from "@/components/shell/app-dock";
@@ -91,24 +91,14 @@ export function WishlistApp() {
         <div className="map-pane">
           <CosmicMap
             wishes={store.wishes}
-            collections={store.collections}
+            ready={store.ready}
+            mapReady={store.mapReady}
+            showAdd={!overlay}
             onOpen={(wish) => setOverlay({ kind: "view", wish })}
+            onAdd={() => openCreate()}
             onSettings={() => setScreen("settings")}
-            onHome={() => setScreen("home")}
-            onPersistPositions={(updates) => {
-              updates.forEach((u) => {
-                const wish = store.wishes.find((w) => w.id === u.id);
-                if (!wish) return;
-                if (wish.mapX != null && wish.mapY != null) return;
-                void store.upsertWish({ ...wish, mapX: u.mapX, mapY: u.mapY });
-              });
-            }}
+            onPersistPositions={store.persistMapPositions}
           />
-          {!overlay ? (
-            <button type="button" className="fab fab-map" aria-label="Добавить" onClick={() => openCreate()}>
-              <Plus className="size-6" />
-            </button>
-          ) : null}
         </div>
       ) : (
         <div className={screen === "home" ? "stage" : "stage stage-plain"}>

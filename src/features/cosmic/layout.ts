@@ -1,89 +1,111 @@
-import { hashString, mulberry32 } from "@/lib/prng";
-import type { Collection, Wish } from "@/types/wishlist";
+import type { Wish } from "@/types/wishlist";
+
+export type PlanetSize = "hero" | "satellite" | "moon";
 
 export interface PlanetPose {
   x: number;
   y: number;
-  size: number;
-  hero: boolean;
+  size: PlanetSize;
 }
 
-export interface ConstellationLine {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  color: string;
-}
-
-/** Composition from the cosmic reference: one large center orb, satellites around it. */
-const SLOTS = [
-  { x: 6, y: 18 },
-  { x: -128, y: -168 },
-  { x: 136, y: -146 },
-  { x: -118, y: 186 },
-  { x: 132, y: 172 },
-  { x: 8, y: -292 },
-  { x: -8, y: 312 },
-  { x: 210, y: 20 },
+/** Reference composition: one hero, four satellites, then moons. Percents of the world. */
+const ANCHORS: ReadonlyArray<{ x: number; y: number; size: PlanetSize }> = [
+  { x: 50, y: 51, size: "hero" },
+  { x: 22, y: 25, size: "satellite" },
+  { x: 78, y: 23, size: "satellite" },
+  { x: 22, y: 76, size: "satellite" },
+  { x: 79, y: 75, size: "satellite" },
+  { x: 49, y: 88, size: "moon" },
+  { x: 5, y: 94, size: "moon" },
+  { x: 95, y: 49, size: "moon" },
 ];
 
-function rank(wish: Wish): number {
-  const pri = wish.priority === "critical" ? 4 : wish.priority === "high" ? 3 : wish.priority === "medium" ? 2 : 1;
-  const money = wish.targetAmount ?? wish.price ?? 0;
-  return pri * 1_000_000 + money;
+export function positionFor(index: number): { x: number; y: number; size: PlanetSize } {
+  const anchor = ANCHORS[index];
+  if (anchor) return anchor;
+  const n = index - ANCHORS.length;
+  const angle = n * 2.399963229728653;
+  const radius = 38 + Math.sqrt(n + 1) * 5.5;
+  return {
+    x: Math.max(7, Math.min(93, 50 + Math.cos(angle) * radius)),
+    y: Math.max(12, Math.min(91, 51 + Math.sin(angle) * radius * 0.78)),
+    size: "moon",
+  };
 }
 
-function sizeFor(index: number, wish: Wish): number {
-  if (index === 0) return wish.kind === "trip" ? 236 : 214;
-  if (wish.priority === "critical" || wish.priority === "high") return 168;
-  return 150;
+export function isWorldPercent(x: number | null | undefined, y: number | null | undefined): x is number {
+  return typeof x === "number" && typeof y === "number" && x >= 0 && x <= 100 && y >= 0 && y <= 100;
 }
 
-export function computePlanetLayout(
-  wishes: Wish[],
-  collections: Collection[],
-): { positions: Map<string, PlanetPose>; lines: ConstellationLine[] } {
-  const ordered = [...wishes].sort((a, b) => rank(b) - rank(a) || a.order - b.order);
-  const positions = new Map<string, PlanetPose>();
-  ordered.forEach((wish, index) => {
-    const slot = SLOTS[index % SLOTS.length]!;
-    const ring = Math.floor(index / SLOTS.length);
-    const jitter = mulberry32(hashString(wish.id));
-    const spread = ring * 250;
-    const x = slot.x + Math.cos(jitter() * Math.PI * 2) * spread;
-    const y = slot.y + Math.sin(jitter() * Math.PI * 2) * spread;
-    positions.set(wish.id, {
-      x,
-      y,
-      size: sizeFor(index, wish),
-      hero: index === 0,
-    });
-  });
-
-  const lines: ConstellationLine[] = [];
-  const groups = new Map<string, Wish[]>();
-  wishes.forEach((wish) => {
-    const key = wish.collectionId ?? "__all__";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(wish);
-  });
-  // One constellation across the visible set, colored by collection when present.
-  const chain = ordered;
-  for (let i = 0; i < chain.length - 1; i += 1) {
-    const a = positions.get(chain[i]!.id);
-    const b = positions.get(chain[i + 1]!.id);
-    if (!a || !b) continue;
-    const col = collections.find((c) => c.id === chain[i]!.collectionId);
-    lines.push({
-      x1: a.x,
-      y1: a.y,
-      x2: b.x,
-      y2: b.y,
-      color: col?.color ?? "rgba(210, 180, 255, 0.55)",
-    });
+export function sizeAt(x: number, y: number): PlanetSize {
+  let best: PlanetSize = "moon";
+  let bestDistance = 25;
+  for (const anchor of ANCHORS) {
+    const distance = (anchor.x - x) ** 2 + (anchor.y - y) ** 2;
+    if (distance < bestDistance) {
+      best = anchor.size;
+      bestDistance = distance;
+    }
   }
-  return { positions, lines };
+  return best;
+}
+
+function importance(wish: Wish): number {
+  const priority = wish.priority === "critical" ? 4 : wish.priority === "high" ? 3 : wish.priority === "medium" ? 2 : 1;
+  return priority * 1_000_000 + (wish.targetAmount ?? wish.price ?? 0);
+}
+
+function roundPercent(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * Stable world positions in percent of the map.
+ * When `trustStored` is false, previously saved pixel offsets are ignored and every wish is placed again.
+ */
+export function layoutPlanets(
+  wishes: Wish[],
+  trustStored: boolean,
+): { placed: Map<string, PlanetPose>; updates: Array<{ id: string; mapX: number; mapY: number }> } {
+  const placed = new Map<string, PlanetPose>();
+  const updates: Array<{ id: string; mapX: number; mapY: number }> = [];
+  const occupied: Array<{ x: number; y: number }> = [];
+  const pending: Wish[] = [];
+
+  for (const wish of wishes) {
+    if (trustStored && isWorldPercent(wish.mapX, wish.mapY)) {
+      const x = wish.mapX;
+      const y = wish.mapY as number;
+      occupied.push({ x, y });
+      placed.set(wish.id, { x, y, size: sizeAt(x, y) });
+    } else {
+      pending.push(wish);
+    }
+  }
+
+  pending.sort((a, b) => {
+    if (a.archived !== b.archived) return a.archived ? 1 : -1;
+    return importance(b) - importance(a) || a.order - b.order || a.createdAt - b.createdAt;
+  });
+
+  let slot = 0;
+  for (const wish of pending) {
+    let pose = positionFor(slot);
+    let guard = 0;
+    while (guard < 80 && occupied.some((point) => Math.hypot(point.x - pose.x, point.y - pose.y) < 3.5)) {
+      slot += 1;
+      pose = positionFor(slot);
+      guard += 1;
+    }
+    const x = roundPercent(pose.x);
+    const y = roundPercent(pose.y);
+    occupied.push({ x, y });
+    placed.set(wish.id, { x, y, size: sizeAt(x, y) });
+    slot += 1;
+    if (wish.mapX !== x || wish.mapY !== y) updates.push({ id: wish.id, mapX: x, mapY: y });
+  }
+
+  return { placed, updates };
 }
 
 export interface MapViewState {
@@ -92,7 +114,7 @@ export interface MapViewState {
   scale: number;
 }
 
-const VIEW_KEY = "wishlist-map-view";
+const VIEW_KEY = "wishlist-map-view-v2";
 
 export function loadMapView(): MapViewState {
   try {
@@ -103,7 +125,7 @@ export function loadMapView(): MapViewState {
       return {
         x: parsed.x,
         y: parsed.y,
-        scale: Math.min(2.4, Math.max(0.55, parsed.scale)),
+        scale: Math.min(1.85, Math.max(0.68, parsed.scale)),
       };
     }
   } catch {

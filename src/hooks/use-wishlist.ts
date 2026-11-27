@@ -8,10 +8,12 @@ import {
   DEFAULT_NAME,
   loadWishlist,
   putCollection,
+  markMapSpace,
   putWish,
   removeCollection,
   removeWish,
   replaceWishlist,
+  saveMapPositions,
   saveOrder,
   saveProfile,
 } from "@/database/wishlist-db";
@@ -23,6 +25,7 @@ export function useWishlist() {
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [ready, setReady] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -33,6 +36,7 @@ export function useWishlist() {
         setCurrency(data.currency);
         setWishes(data.wishes);
         setCollections(data.collections);
+        setMapReady(data.mapReady);
         setReady(true);
       })
       .catch(() => {
@@ -195,6 +199,28 @@ export function useWishlist() {
     [wishes],
   );
 
+  const persistMapPositions = useCallback(
+    async (updates: Array<{ id: string; mapX: number; mapY: number }>, markReady = false) => {
+      if (markReady) setMapReady(true);
+      if (updates.length) {
+        const byId = new Map(updates.map((update) => [update.id, update]));
+        setWishes((current) =>
+          current.map((wish) => {
+            const next = byId.get(wish.id);
+            return next ? { ...wish, mapX: next.mapX, mapY: next.mapY } : wish;
+          }),
+        );
+      }
+      try {
+        if (updates.length) await saveMapPositions(updates);
+        if (markReady) await markMapSpace();
+      } catch {
+        toast.error("Координаты карты не сохранились");
+      }
+    },
+    [],
+  );
+
   const reorder = useCallback(
     async (ids: string[]) => {
       const orderOf = new Map(ids.map((id, index) => [id, index]));
@@ -303,6 +329,7 @@ export function useWishlist() {
 
   return {
     ready,
+    mapReady,
     name,
     setName,
     currency,
@@ -314,6 +341,7 @@ export function useWishlist() {
     changeCurrency,
     saveDraft,
     upsertWish,
+    persistMapPositions,
     setArchived,
     deleteWish,
     reorder,

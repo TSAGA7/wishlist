@@ -41,14 +41,19 @@ export function CosmicPlanet({
   return (
     <button
       type="button"
-      className={`cosmic-planet ${pose.hero ? "is-hero" : ""}`}
-      style={{ left: pose.x, top: pose.y, width: pose.size, height: pose.size }}
+      className={`cosmic-planet ${pose.size === "hero" ? "is-hero" : ""}`}
+      style={{
+        left: `${pose.x}%`,
+        top: `${pose.y}%`,
+        width: pose.size === "hero" ? 280 : pose.size === "satellite" ? 180 : 110,
+        height: pose.size === "hero" ? 280 : pose.size === "satellite" ? 180 : 110,
+      }}
       onClick={(event) => {
         event.stopPropagation();
         onOpen(wish);
       }}
     >
-      {pose.hero ? <span className="cosmic-planet-ring" aria-hidden="true" /> : null}
+      {pose.size === "hero" ? <span className="cosmic-planet-ring" aria-hidden="true" /> : null}
       <span className="cosmic-planet-orb">
         <img src={photo} alt="" className="cosmic-planet-photo" draggable={false} />
         <span className="cosmic-planet-shade" aria-hidden="true" />
