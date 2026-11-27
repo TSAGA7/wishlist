@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Check, Link2, Plane, ShoppingBag, X } from "lucide-react";
+import { OverlayFrame, useOverlayClose } from "@/components/overlay-frame";
 import { hostOf } from "@/lib/draft";
 import { CURRENCIES, currencyLabel, type Currency } from "@/lib/money";
 import { parseProduct } from "@/lib/parse-product";
@@ -13,7 +14,20 @@ const PRIORITIES: { id: Priority; label: string }[] = [
   { id: "critical", label: "Критичный" },
 ];
 
-export function EditorSheet({
+export function EditorSheet(props: {
+  draft: WishDraft;
+  collections: Collection[];
+  onClose: () => void;
+  onSave: (draft: WishDraft) => void;
+}) {
+  return (
+    <OverlayFrame onClose={props.onClose} variant="sheet">
+      <EditorSheetBody {...props} />
+    </OverlayFrame>
+  );
+}
+
+function EditorSheetBody({
   draft,
   collections,
   onClose,
@@ -24,24 +38,12 @@ export function EditorSheet({
   onClose: () => void;
   onSave: (draft: WishDraft) => void;
 }) {
+  const dismiss = useOverlayClose() ?? onClose;
   const [form, setForm] = useState(draft);
   const [parsing, setParsing] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const lastParsed = useRef("");
-
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = previous;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
 
   async function pull(raw: string, force: boolean) {
     const url = raw.trim();
@@ -98,7 +100,7 @@ export function EditorSheet({
     const up = (ev: PointerEvent) => {
       target.removeEventListener("pointermove", move);
       target.removeEventListener("pointerup", up);
-      if (ev.clientY - start > 90) onClose();
+      if (ev.clientY - start > 90) dismiss();
       else if (sheetRef.current) sheetRef.current.style.transform = "";
     };
     target.addEventListener("pointermove", move);
@@ -111,14 +113,14 @@ export function EditorSheet({
 
   return (
     <div className="sheet-root">
-      <button type="button" className="backdrop" aria-label="Закрыть" onClick={onClose} />
+      <button type="button" className="backdrop" aria-label="Закрыть" onClick={dismiss} />
       <div ref={sheetRef} className="sheet rise" role="dialog" aria-modal="true" aria-labelledby="editor-title">
         <div className="handle" onPointerDown={onHandleDown} />
         <div className="mb-3 flex items-center justify-between">
           <h2 id="editor-title" className="text-xl font-semibold">
             {form.id ? "Редактировать" : form.kind === "trip" ? "Добавить поездку" : "Добавить покупку"}
           </h2>
-          <button type="button" className="icon-btn" aria-label="Закрыть" onClick={onClose}>
+          <button type="button" className="icon-btn" aria-label="Закрыть" onClick={dismiss}>
             <X className="size-5" />
           </button>
         </div>
@@ -385,7 +387,7 @@ export function EditorSheet({
           <button type="submit" className="save">
             <Check className="size-5" /> Сохранить
           </button>
-          <button type="button" className="cancel" onClick={onClose}>
+          <button type="button" className="cancel" onClick={dismiss}>
             Отмена
           </button>
         </form>

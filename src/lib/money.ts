@@ -50,6 +50,7 @@ export function parseAmount(raw: string): number | null {
 }
 
 export function formatMoney(amount: number, currency: Currency): string {
+  if (!Number.isFinite(amount)) return "—";
   if (currency === "USD") {
     return new Intl.NumberFormat("en-US", {
       style: "currency",

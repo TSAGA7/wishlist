@@ -59,9 +59,9 @@ function money(value?: number | null, currency = "RUB"): string {
 }
 
 function priorityLabel(priority?: string): string {
-  if (priority === "critical") return "🔥 Критический";
-  if (priority === "high") return "🔥 Высокий";
-  if (priority === "medium") return "◎ Средний";
+  if (priority === "critical") return "Критический";
+  if (priority === "high") return "Высокий";
+  if (priority === "medium") return "Средний";
   return "";
 }
 
@@ -77,22 +77,19 @@ function seeded(n: number): number {
   return x - Math.floor(x);
 }
 
+const STARS = Array.from({ length: 190 }, (_, index) => ({
+  id: index,
+  x: seeded(index + 1) * 100,
+  y: seeded(index + 501) * 100,
+  size: 1 + seeded(index + 901) * 2,
+  opacity: 0.22 + seeded(index + 1301) * 0.7,
+  delay: `${seeded(index + 1701) * 7}s`,
+}));
+
 function Stars() {
-  const stars = useMemo(
-    () =>
-      Array.from({ length: 190 }, (_, index) => ({
-        id: index,
-        x: seeded(index + 1) * 100,
-        y: seeded(index + 501) * 100,
-        size: 1 + seeded(index + 901) * 2,
-        opacity: 0.22 + seeded(index + 1301) * 0.7,
-        delay: `${seeded(index + 1701) * 7}s`,
-      })),
-    [],
-  );
   return (
     <div className="cw-stars" aria-hidden="true">
-      {stars.map((star) => (
+      {STARS.map((star) => (
         <i
           key={star.id}
           className="cw-star"
@@ -133,9 +130,10 @@ function Planet({
     wish.targetAmount && wish.targetAmount > 0
       ? Math.min(100, Math.round(((wish.savedAmount || 0) / wish.targetAmount) * 100))
       : null;
-  const priority = priorityLabel(wish.priority);
+  const priority = wish.size === "moon" ? "" : priorityLabel(wish.priority);
   const source = wish.image?.trim() ? wish.image.trim() : "";
   const image = source && !failed ? imageSrc(source, nonce) : "";
+  const showProgress = wish.size !== "moon" && progress != null && (wish.size === "hero" || wish.kind === "trip");
 
   return (
     <div
@@ -154,6 +152,7 @@ function Planet({
       }}
       aria-label={`Открыть желание: ${wish.title}`}
     >
+      <span className="cw-sphere">
       <span className={`cw-planet__surface ${image ? "" : "is-placeholder"}`}>
         {image ? (
           <img
@@ -171,24 +170,26 @@ function Planet({
       </span>
       <span className="cw-type">{wish.kind === "trip" ? <Plane /> : <ShoppingBag />}</span>
       {priority ? <span className={`cw-priority cw-priority--${wish.priority}`}>{priority}</span> : null}
-      <span className="cw-copy">
-        <strong>{wish.title}</strong>
-        {wish.subtitle ? <small>{wish.subtitle}</small> : null}
-        {wish.price != null ? <b>{money(wish.price, wish.currency)}</b> : null}
-        {progress != null ? (
-          <span className="cw-progress">
-            <i>
-              <em style={{ width: `${progress}%` }} />
-            </i>
-            <small>{progress}%</small>
-          </span>
-        ) : null}
-        {wish.deadline ? (
-          <small className="cw-deadline">
-            <CalendarDays /> {dateLabel(wish.deadline)}
-          </small>
-        ) : null}
-      </span>
+      {wish.size === "moon" ? null : (
+        <span className="cw-copy">
+          <strong>{wish.title}</strong>
+          {wish.size === "hero" && wish.subtitle ? <small>{wish.subtitle}</small> : null}
+          {wish.price != null ? <b>{money(wish.price, wish.currency)}</b> : null}
+          {showProgress ? (
+            <span className="cw-progress">
+              <i>
+                <em style={{ width: `${progress}%` }} />
+              </i>
+              <small>{progress}%</small>
+            </span>
+          ) : null}
+          {wish.size === "hero" && wish.deadline ? (
+            <small className="cw-deadline">
+              <CalendarDays /> {dateLabel(wish.deadline)}
+            </small>
+          ) : null}
+        </span>
+      )}
       {failed ? (
         <button
           type="button"
@@ -205,6 +206,7 @@ function Planet({
           ↻
         </button>
       ) : null}
+      </span>
     </div>
   );
 }

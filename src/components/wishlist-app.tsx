@@ -73,9 +73,26 @@ export function WishlistApp() {
 
   const showDock = screen !== "settings";
   const mapMode = screen === "map";
+  const overlayOpen = overlay !== null;
+
+  useEffect(() => {
+    if (!overlayOpen) return;
+    history.pushState({ wishlistOverlay: true }, "");
+    let fromHistory = false;
+    const onPop = () => {
+      fromHistory = true;
+      setOverlay(null);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      const state = history.state as { wishlistOverlay?: boolean } | null;
+      if (!fromHistory && state?.wishlistOverlay) history.back();
+    };
+  }, [overlayOpen]);
 
   return (
-    <div className={`shell ${mapMode ? "shell-map" : ""}`}>
+    <div className={`shell ${mapMode ? "shell-map" : ""} ${overlayOpen ? "shell-locked" : ""}`}>
       <SideNav
         screen={screen}
         counts={{

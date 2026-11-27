@@ -8,18 +8,21 @@ export function SavingsPanel({
   wish,
   onChange,
   editable = true,
+  always = false,
 }: {
   wish: Wish;
   onChange: (wish: Wish) => void;
   editable?: boolean;
+  always?: boolean;
 }) {
   const [adding, setAdding] = useState(false);
   const [amount, setAmount] = useState("");
   const [comment, setComment] = useState("");
 
-  const target = wish.targetAmount;
-  const progress = target && target > 0 ? Math.min(100, Math.round((wish.savedAmount / target) * 100)) : 0;
-  const remaining = target != null ? Math.max(0, target - wish.savedAmount) : null;
+  const saved = Number.isFinite(wish.savedAmount) ? wish.savedAmount : 0;
+  const target = wish.targetAmount != null && Number.isFinite(wish.targetAmount) ? wish.targetAmount : null;
+  const progress = target && target > 0 ? Math.min(100, Math.round((saved / target) * 100)) : 0;
+  const remaining = target != null ? Math.max(0, target - saved) : null;
 
   function addSaving() {
     const val = parseAmount(amount);
@@ -35,7 +38,7 @@ export function SavingsPanel({
     };
     onChange({
       ...wish,
-      savedAmount: wish.savedAmount + val,
+      savedAmount: saved + val,
       savingsHistory: [...wish.savingsHistory, op],
       updatedAt: Date.now(),
     });
@@ -60,14 +63,14 @@ export function SavingsPanel({
     toast.success("Операция удалена");
   }
 
-  if (target == null && wish.savedAmount <= 0 && wish.savingsHistory.length === 0) {
+  if (!always && target == null && saved <= 0 && wish.savingsHistory.length === 0) {
     return null;
   }
 
   return (
     <div className="savings glass rounded-xl p-3">
       <div className="flex justify-between text-sm">
-        <span>Накоплено {formatMoney(wish.savedAmount, wish.currency)}</span>
+        <span>Накоплено {formatMoney(saved, wish.currency)}</span>
         <span>Осталось {remaining != null ? formatMoney(remaining, wish.currency) : "—"}</span>
       </div>
       {target != null ? (
