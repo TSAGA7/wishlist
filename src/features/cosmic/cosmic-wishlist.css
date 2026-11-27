@@ -850,6 +850,32 @@
   }
 }
 
+@media (max-width: 430px) {
+  .cw-filters {
+    right: 12px;
+    left: calc(var(--cw-side, 0px) + 12px);
+    gap: 5px;
+    padding-right: 0;
+    mask-image: none;
+  }
+
+  .cw-filters button {
+    padding: 0 10px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 380px) {
+  .cw-filters {
+    gap: 4px;
+  }
+
+  .cw-filters button {
+    padding: 0 8px;
+    font-size: 10.5px;
+  }
+}
+
 @media (max-width: 390px) {
   .cw-brand__icon {
     width: 51px;

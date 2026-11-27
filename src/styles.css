@@ -1305,10 +1305,11 @@ html.light .chip {
 .wish-stat,
 .wish-note,
 .wish-screen .savings {
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 1.2rem;
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 10px 28px rgba(0, 0, 0, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.045));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 10px 28px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(18px);
 }
 
@@ -1377,24 +1378,32 @@ html.light .chip {
   padding: 0.7rem 1rem calc(0.85rem + env(safe-area-inset-bottom));
 }
 
+.overlay-frame--center .overlay-backdrop {
+  background: rgba(10, 8, 18, 0.38);
+  backdrop-filter: blur(26px) saturate(1.35);
+  -webkit-backdrop-filter: blur(26px) saturate(1.35);
+}
+
 .add-modal {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: min(24.5rem, calc(100vw - 2rem));
-  padding: 1.15rem 1rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 1.7rem;
+  width: min(22.5rem, calc(100vw - 2.25rem));
+  padding: 1.2rem 1rem 1.05rem;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 1.85rem;
   color: white;
-  background: rgba(22, 18, 38, 0.72);
+  background:
+    linear-gradient(180deg, rgba(92, 70, 120, 0.42), rgba(36, 28, 52, 0.28) 46%, rgba(72, 48, 64, 0.22)),
+    rgba(28, 22, 42, 0.46);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    0 24px 60px rgba(0, 0, 0, 0.4);
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    0 28px 70px rgba(0, 0, 0, 0.38);
   max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1.5rem);
   overflow: auto;
   transform: translate(-50%, -50%);
-  backdrop-filter: blur(28px) saturate(1.4);
-  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  backdrop-filter: blur(36px) saturate(1.7);
+  -webkit-backdrop-filter: blur(36px) saturate(1.7);
   animation: modal-in 220ms ease-out;
 }
 
@@ -1415,38 +1424,49 @@ html.light .chip {
   letter-spacing: -0.03em;
 }
 
+.add-modal__close {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
 .add-option {
   display: flex;
   width: 100%;
   align-items: center;
   gap: 0.85rem;
-  min-height: 5.4rem;
-  margin-top: 0.7rem;
-  padding: 0.85rem 0.9rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 1.25rem;
+  min-height: 5.6rem;
+  margin-top: 0.75rem;
+  padding: 0.9rem 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 1.35rem;
   color: white;
   text-align: left;
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+  background:
+    linear-gradient(128deg, rgba(214, 170, 230, 0.34), rgba(120, 96, 168, 0.16) 46%, rgba(232, 156, 132, 0.2));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    0 12px 28px rgba(40, 16, 48, 0.18);
+  transition: transform 160ms ease, border-color 160ms ease, filter 160ms ease;
 }
 
 .add-option:active {
   transform: scale(0.985);
-  border-color: rgba(255, 214, 245, 0.45);
-  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 228, 246, 0.7);
+  filter: brightness(1.12);
 }
 
 .add-option__icon {
   display: grid;
-  width: 3.1rem;
-  height: 3.1rem;
+  width: 3.15rem;
+  height: 3.15rem;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .add-option__icon svg {
