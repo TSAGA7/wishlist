@@ -1,4 +1,4 @@
-const CACHE = "wishlist-shell-v6";
+const CACHE = "wishlist-shell-v7";
 const BASE = "/wishlist/";
 
 const PRECACHE = [
@@ -15,16 +15,22 @@ const PRECACHE = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()),
-  );
+  // Do not skipWaiting here. The new build waits until the user taps «Обновить»,
+  // the same way My World does, so the open version keeps its own cache.
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)));
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data === "skip-waiting") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
+      .then((keys) =>
+        Promise.all(keys.filter((key) => key.startsWith("wishlist-") && key !== CACHE).map((key) => caches.delete(key))),
+      )
       .then(() => self.clients.claim()),
   );
 });
@@ -68,7 +74,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (!url.pathname.startsWith(BASE) && url.pathname !== "/wishlist") return;
 
-  if (request.mode === "navigate") {
+  if (request.mode === "navigate" || url.pathname.endsWith("/sw.js")) {
     event.respondWith(networkFirst(request));
     return;
   }

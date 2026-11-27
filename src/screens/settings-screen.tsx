@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Download, Info, Moon, Settings, Smartphone, Sun, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Info, Moon, RefreshCw, Settings, Smartphone, Sun, Upload } from "lucide-react";
 import { CURRENCIES, currencyLabel, type Currency } from "@/lib/money";
 
 export function SettingsScreen({
@@ -10,6 +10,7 @@ export function SettingsScreen({
   onExport,
   onImport,
   onInstall,
+  onCheckUpdate,
   onBack,
   onMap,
 }: {
@@ -20,6 +21,7 @@ export function SettingsScreen({
   onExport: () => void;
   onImport: () => void;
   onInstall: () => void;
+  onCheckUpdate: () => void;
   onBack: () => void;
   onMap: () => void;
 }) {
@@ -83,6 +85,9 @@ export function SettingsScreen({
             отдаёт. Копия JSON возвращает список, если очистите браузер.
           </p>
         ) : null}
+        <button type="button" className="row glass" onClick={onCheckUpdate}>
+          <RefreshCw className="size-5" /> <span className="grow">Обновить приложение</span>
+        </button>
         <button type="button" className="row glass" onClick={onMap}>
           <span className="grow">Карта желаний</span>
           <ChevronRight className="size-4 shrink-0" />

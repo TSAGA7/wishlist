@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { setTheme } from "@/components/theme-boot";
+import { UpdatePrompt } from "@/components/update-prompt";
 import { AppDock, SideNav } from "@/components/shell/app-dock";
 import { CollectionsScreen } from "@/features/collections/collections-screen";
 import { CosmicMap } from "@/features/cosmic/cosmic-map";
@@ -9,6 +10,7 @@ import { AddChoiceSheet } from "@/features/wishes/add-choice-sheet";
 import { EditorSheet } from "@/features/wishes/editor-sheet";
 import { ViewSheet } from "@/features/wishes/view-sheet";
 import { useWishlist } from "@/hooks/use-wishlist";
+import { checkForUpdate, startUpdates } from "@/lib/app-update";
 import { draftFromWish, emptyWishDraft } from "@/lib/draft";
 import { wishesWord } from "@/lib/money";
 import { ArchiveScreen } from "@/screens/archive-screen";
@@ -36,17 +38,14 @@ export function WishlistApp() {
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
-    if (import.meta.env.PROD && "serviceWorker" in navigator) {
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (refreshing) return;
-        refreshing = true;
-        window.location.reload();
-      });
-      const swUrl = `${import.meta.env.BASE_URL}sw.js`;
-      navigator.serviceWorker.register(swUrl).then((reg) => reg.update()).catch(() => undefined);
-    }
+    if (import.meta.env.PROD) startUpdates();
   }, []);
+
+  async function handleCheckUpdate() {
+    const result = await checkForUpdate();
+    if (result === "current") toast("Уже последняя версия");
+    if (result === "unsupported") toast("Обновление доступно в установленном приложении");
+  }
 
   function applyTheme(mode: "light" | "dark") {
     setDark(setTheme(mode));
@@ -139,6 +138,7 @@ export function WishlistApp() {
               onExport={store.exportJson}
               onImport={() => fileRef.current?.click()}
               onInstall={() => setOverlay({ kind: "install" })}
+              onCheckUpdate={() => void handleCheckUpdate()}
               onBack={() => setScreen("home")}
               onMap={() => setScreen("map")}
             />
@@ -230,6 +230,8 @@ export function WishlistApp() {
           if (file) void handleImportFile(file);
         }}
       />
+
+      <UpdatePrompt />
 
       <Toaster
         position="top-center"
