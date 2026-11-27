@@ -1,4 +1,4 @@
-const CACHE = "wishlist-shell-v7";
+const CACHE = "wishlist-shell-v8";
 const BASE = "/wishlist/";
 
 const PRECACHE = [
@@ -15,9 +15,10 @@ const PRECACHE = [
 ];
 
 self.addEventListener("install", (event) => {
-  // Do not skipWaiting here. The new build waits until the user taps «Обновить»,
-  // the same way My World does, so the open version keeps its own cache.
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)));
+  // Take over immediately. The copy already on the phone reloads when the controller
+  // changes, so this build actually shows up. «Обновить» still posts skip-waiting
+  // when a newer build is waiting.
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("message", (event) => {
