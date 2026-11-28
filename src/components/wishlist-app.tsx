@@ -17,7 +17,7 @@ import { draftFromWish, emptyWishDraft } from "@/lib/draft";
 import { wishesWord } from "@/lib/money";
 import { ArchiveScreen } from "@/screens/archive-screen";
 import { CabinetScreen } from "@/screens/cabinet-screen";
-import { HomeFab, HomeScreen } from "@/screens/home-screen";
+import { HomeScreen } from "@/screens/home-screen";
 import type { Collection, HomeFilter, Screen, ThemeMode, Wish, WishDraft, WishKind } from "@/types/wishlist";
 
 type Overlay =
@@ -143,7 +143,7 @@ export function WishlistApp() {
             wishes={store.wishes}
             ready={store.ready}
             mapReady={store.mapReady}
-            showAdd={!overlay}
+            showAdd={false}
             onOpen={(wish) => setOverlay({ kind: "view", wish })}
             onAdd={() => openCreate()}
             onPersistPositions={store.persistMapPositions}
@@ -224,6 +224,7 @@ export function WishlistApp() {
               onImport={() => fileRef.current?.click()}
               onInstall={() => setOverlay({ kind: "install" })}
               onCheckUpdate={() => void handleCheckUpdate()}
+              onOpenArchive={() => navigate("archive")}
             />
           ) : null}
 
@@ -238,7 +239,6 @@ export function WishlistApp() {
             />
           ) : null}
 
-          {screen === "home" && !overlay && !selectMode ? <HomeFab onClick={() => openCreate()} /> : null}
         </div>
       )}
 
@@ -246,6 +246,7 @@ export function WishlistApp() {
         screen={screen}
         settings={store.settings}
         onNavigate={navigate}
+        onAdd={() => openCreate()}
         onRecoverCabinet={
           visibleDock(store.settings).includes("cabinet") ? undefined : () => navigate("cabinet")
         }

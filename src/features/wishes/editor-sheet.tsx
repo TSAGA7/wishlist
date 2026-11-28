@@ -15,7 +15,7 @@ import {
 import { OverlayFrame, useOverlayClose } from "@/components/overlay-frame";
 import { putPhoto, removePhoto } from "@/database/wishlist-db";
 import { Thumb } from "@/features/wishes/thumb";
-import { hostOf } from "@/lib/draft";
+import { canonicalUrl, hostOf } from "@/lib/draft";
 import { kindLabel } from "@/lib/kinds";
 import { CURRENCIES, currencyLabel, type Currency } from "@/lib/money";
 import { parseProduct } from "@/lib/parse-product";
@@ -68,17 +68,23 @@ function EditorSheetBody({
   const lastParsed = useRef("");
 
   async function pull(raw: string, force: boolean) {
-    const url = raw.trim();
-    if (!url) {
+    const trimmed = raw.trim();
+    if (!trimmed) {
       setStatus("Вставьте ссылку или заполните поля сами");
       return;
     }
+    const url = canonicalUrl(trimmed);
+    if (!url) {
+      setStatus("Нужна обычная ссылка http или https");
+      return;
+    }
+    setForm((current) => (current.url === url ? current : { ...current, url }));
     if (!force && url === lastParsed.current) return;
+    lastParsed.current = url;
     setParsing(true);
     setStatus("Смотрим страницу…");
     try {
       const result = await parseProduct({ data: { url } });
-      lastParsed.current = url;
       if (result.error) {
         setStatus("Не удалось прочитать страницу. Можно заполнить вручную");
         return;
@@ -91,7 +97,7 @@ function EditorSheetBody({
         const takePrice = result.price != null && (force || !current.price.trim());
         return {
           ...current,
-          url: current.url.trim() ? current.url : url,
+          url,
           title: result.title && (force || !current.title.trim()) ? result.title : current.title,
           price: takePrice ? String(result.price) : current.price,
           currency: result.currency && takePrice ? result.currency : current.currency,
@@ -180,12 +186,27 @@ function EditorSheetBody({
                     spellCheck={false}
                     placeholder="https://"
                     onChange={(event) => setForm({ ...form, url: event.target.value })}
-                    onBlur={() => {
-                      if (form.url.trim()) void pull(form.url, false);
+                    onBlur={(event) => {
+                      const canonical = canonicalUrl(event.currentTarget.value);
+                      if (canonical) {
+                        setForm((current) => ({ ...current, url: canonical }));
+                        void pull(canonical, false);
+                        return;
+                      }
+                      if (event.currentTarget.value.trim()) setStatus("Нужна обычная ссылка http или https");
                     }}
                     onPaste={(event) => {
                       const text = event.clipboardData.getData("text");
-                      if (text.trim()) void pull(text, false);
+                      if (!text.trim()) return;
+                      event.preventDefault();
+                      const canonical = canonicalUrl(text);
+                      if (!canonical) {
+                        setForm((current) => ({ ...current, url: "" }));
+                        setStatus("Нужна обычная ссылка http или https");
+                        return;
+                      }
+                      setForm((current) => ({ ...current, url: canonical }));
+                      void pull(canonical, false);
                     }}
                     className="field url-field"
                   />
@@ -292,7 +313,7 @@ function EditorSheetBody({
             </div>
           </label>
 
-          <div className={`savings-line ${form.savingsEnabled ? "is-open" : ""}`}>
+          <div className="savings-line">
             <button
               type="button"
               className="switch switch-compact"
@@ -313,7 +334,7 @@ function EditorSheetBody({
             </button>
 
             {form.savingsEnabled ? (
-              <>
+              <div className="savings-fields">
                 <label>
                   <span className="label">Уже накоплено</span>
                   <input
@@ -333,7 +354,7 @@ function EditorSheetBody({
                     onChange={(e) => setForm({ ...form, deadline: e.target.value })}
                   />
                 </label>
-              </>
+              </div>
             ) : null}
           </div>
 

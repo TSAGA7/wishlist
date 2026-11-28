@@ -9,7 +9,6 @@ export const NAV_ITEMS: { id: DockTab; label: string }[] = [
   { id: "home", label: "Хотелки" },
   { id: "map", label: "Карта" },
   { id: "collections", label: "Подборки" },
-  { id: "archive", label: "Архив" },
   { id: "cabinet", label: "Кабинет" },
 ];
 

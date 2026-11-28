@@ -301,10 +301,3 @@ function spark(wishes: Wish[]): number[] {
   return values.map((value) => Math.max(18, Math.round((value / max) * 100)));
 }
 
-export function HomeFab({ onClick }: { onClick: () => void }) {
-  return (
-    <button type="button" className="fab" aria-label="Добавить" onClick={onClick}>
-      <Plus className="size-6" />
-    </button>
-  );
-}

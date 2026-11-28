@@ -57,16 +57,27 @@
     radial-gradient(760px 480px at 100% 0%, rgba(88, 118, 196, 0.42), transparent 52%),
     radial-gradient(900px 640px at 70% 110%, rgba(46, 36, 72, 0.55), transparent 50%),
     linear-gradient(180deg, #24304a 0%, #121826 46%, #090b12 100%);
-  /* Safe area is applied once, as the dock lift. The shell itself is not shortened by it. */
-  --safe-b: env(safe-area-inset-bottom, 0px);
-  --dock-offset: max(10px, var(--safe-b));
-  --dock-height: 4.15rem;
-  --dock-clearance: calc(var(--dock-height) + var(--dock-offset) + 16px);
+  /* One viewport height (100dvh on the shell). Safe area is added only in standalone, once, as the dock offset. */
+  --safe-b: 0px;
+  --dock-gap: 10px;
+  --dock-bar: 4.15rem;
+  --dock-offset: var(--dock-gap);
+  --dock-height: var(--dock-bar);
+  --dock-clearance: calc(var(--dock-bar) + var(--dock-gap) + 12px);
   --control-h: 3rem;
   --radius-sm: 0.9rem;
   --radius-md: 1.05rem;
   --radius-lg: 1.35rem;
   color-scheme: dark;
+}
+
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  :root {
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --dock-gap: 0px;
+    --dock-offset: var(--safe-b);
+    --dock-clearance: calc(var(--dock-bar) + var(--safe-b) + 12px);
+  }
 }
 
 html.light {
@@ -137,7 +148,6 @@ html.light .stage {
   body,
   #root {
     height: 100%;
-    height: 100dvh;
   }
 
   html {
@@ -150,6 +160,7 @@ html.light .stage {
   body,
   #root {
     overflow: hidden;
+    overscroll-behavior: none;
     background-color: #090b12;
     background-image: var(--app-canvas);
   }
@@ -189,9 +200,9 @@ html.light .stage {
   top: 0;
   right: 0;
   left: 0;
-  /* Height only. `bottom`/`inset` would stretch this to the layout viewport and ignore dvh. */
-  height: 100%;
+  /* One height source. `bottom`/`inset` would follow the layout viewport and leave a stale strip. */
   height: 100dvh;
+  max-height: 100dvh;
   overflow: hidden;
   background-color: #090b12;
   background-image: var(--app-canvas);
@@ -343,20 +354,27 @@ html.light .stage {
 .pill {
   height: 2.35rem;
   padding: 0 0.9rem;
+  border: 1px solid var(--stroke-strong);
   border-radius: 999px;
+  background: transparent;
   color: var(--muted);
   font-size: 0.92rem;
   white-space: nowrap;
+  transition: background 180ms ease, color 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
 }
 
-.pill[aria-pressed="true"] {
-  background: white;
-  color: #171a22;
-  font-weight: 600;
+.pill[aria-pressed="true"],
+.pill[aria-selected="true"] {
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  color: var(--accent-fg);
+  font-weight: 650;
+  box-shadow: 0 6px 16px rgba(109, 77, 255, 0.32);
 }
 
-html.light .pill[aria-pressed="true"] {
-  background: #171a22;
+html.light .pill[aria-pressed="true"],
+html.light .pill[aria-selected="true"] {
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
   color: white;
 }
 
@@ -494,6 +512,26 @@ html.light .badge {
   transform: scale(0.96);
 }
 
+.dock .dock-add {
+  width: 3.15rem;
+  height: 3.15rem;
+  align-self: center;
+  justify-self: center;
+  flex-direction: row;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  box-shadow: 0 8px 18px rgba(109, 77, 255, 0.4);
+}
+
+.dock .dock-add:active {
+  transform: scale(0.94);
+}
+
+html.light .dock .dock-add {
+  color: white;
+}
+
 .dock button[aria-current="page"] {
   background: rgba(139, 108, 255, 0.24);
   color: #f4efff;
@@ -597,26 +635,30 @@ html.light .dock button[aria-current="page"] {
 
 .segment {
   display: flex;
-  padding: 0.2rem;
+  gap: 0.4rem;
+  padding: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: transparent;
 }
 
 html.light .segment {
-  background: rgba(23, 26, 34, 0.05);
+  background: transparent;
 }
 
 .segment button {
   display: inline-flex;
-  height: 2.15rem;
+  height: 2.35rem;
   flex: 1;
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
   padding: 0 0.75rem;
+  border: 1px solid var(--stroke-strong);
   border-radius: 999px;
+  background: transparent;
   color: var(--muted);
   font-size: 0.85rem;
+  transition: background 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
 .segment.wide {
@@ -684,10 +726,6 @@ html.light .currency-select {
   transform: translateY(-50%);
 }
 
-.url-field {
-  padding-left: 2.4rem;
-  padding-right: 2.3rem;
-}
 
 .empty-card {
   display: flex;
@@ -720,14 +758,17 @@ html.light .currency-select {
 }
 
 .segment button[aria-pressed="true"] {
-  background: rgba(255, 255, 255, 0.16);
-  color: var(--ink);
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  color: var(--accent-fg);
+  font-weight: 650;
+  box-shadow: 0 6px 16px rgba(109, 77, 255, 0.32);
 }
 
 html.light .segment button[aria-pressed="true"] {
-  background: white;
-  color: #171a22;
-  box-shadow: 0 4px 14px rgba(40, 50, 80, 0.12);
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  color: white;
+  box-shadow: 0 6px 16px rgba(109, 77, 255, 0.24);
 }
 
 .install-card {
@@ -791,6 +832,11 @@ html.light .handle {
   background: var(--field);
   padding: 0 0.9rem;
   outline: none;
+}
+
+.field.url-field {
+  padding-left: 2.85rem;
+  padding-right: 2.5rem;
 }
 
 textarea.field {
@@ -933,8 +979,8 @@ textarea.field {
 
 @media (hover: hover) {
   .icon-btn:hover,
-  .dock button:hover,
-  .pill:hover,
+  .dock button:hover:not(.dock-add):not([aria-current="page"]),
+  .pill:hover:not([aria-pressed="true"]),
   .pop button:hover,
   .pop a:hover {
     background: rgba(255, 255, 255, 0.08);
@@ -958,7 +1004,9 @@ textarea.field {
     display: grid;
     grid-template-columns: 272px minmax(0, 1fr);
     gap: 0.75rem;
+    width: auto;
     height: auto;
+    max-height: none;
     min-height: 100dvh;
     padding: 1rem 1.1rem;
     overflow: visible;
@@ -1293,8 +1341,9 @@ html.light .chip {
   top: 0;
   right: 0;
   left: 0;
-  height: 100%;
   height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
   isolation: isolate;
   overscroll-behavior: none;
   touch-action: manipulation;
@@ -1410,8 +1459,10 @@ html.light .chip {
 }
 
 .wish-screen__photo {
+  position: relative;
   overflow: hidden;
   height: min(30vh, 236px);
+  min-height: 9.5rem;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 1.7rem;
   background: #1a1630;
@@ -1707,10 +1758,15 @@ html.light .chip {
 
 .image-fallback {
   position: relative;
-  display: grid;
+  display: flex;
   height: 100%;
-  place-items: center;
-  gap: 0.35rem;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  overflow: hidden;
+  padding: 0.85rem;
   text-align: center;
   background: #241c38;
 }
@@ -1720,39 +1776,32 @@ html.light .chip {
   inset: 0;
   width: 100%;
   height: 100%;
+  object-fit: cover;
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 .image-fallback p,
 .image-fallback button {
   position: relative;
   z-index: 1;
-}
-
-.image-fallback button {
-  height: 2.1rem;
-  padding: 0 0.9rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(20, 16, 32, 0.45);
-}
-
-.image-fallback img {
-  width: 4.5rem;
-  height: 4.5rem;
-  object-fit: contain;
-  opacity: 0.85;
+  max-width: 16rem;
+  margin: 0;
 }
 
 .image-fallback p {
-  color: var(--muted);
+  color: #f4efff;
   font-size: 0.9rem;
 }
 
 .image-fallback button {
   height: 2.2rem;
-  padding: 0 0.9rem;
+  margin-top: 0.15rem;
+  padding: 0 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(20, 16, 32, 0.72);
+  color: white;
 }
 
 .update-overlay {
@@ -2022,8 +2071,11 @@ html.light .chip {
 }
 
 .kind-chip[aria-pressed="true"] {
-  background: rgba(255, 255, 255, 0.14);
-  color: var(--ink);
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  color: var(--accent-fg);
+  font-weight: 650;
+  box-shadow: 0 6px 16px rgba(109, 77, 255, 0.32);
 }
 
 .price-row {
@@ -2054,13 +2106,21 @@ html.light .chip {
 }
 
 .priority-chip[aria-pressed="true"] {
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.12);
+  border-color: transparent;
+  color: var(--accent-fg);
+  background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  font-weight: 650;
+  box-shadow: 0 6px 16px rgba(109, 77, 255, 0.28);
 }
 
-.priority-chip.priority-high[aria-pressed="true"],
+.priority-chip.priority-high[aria-pressed="true"] {
+  background: linear-gradient(160deg, #ff8a6a, #e23b6a);
+  color: white;
+}
+
 .priority-chip.priority-critical[aria-pressed="true"] {
-  background: linear-gradient(120deg, rgba(255, 120, 90, 0.28), rgba(180, 70, 140, 0.22));
+  background: linear-gradient(160deg, #ff5d6c, #b1123f);
+  color: white;
 }
 
 .photo-block {
@@ -2091,30 +2151,40 @@ html.light .chip {
   gap: 0.45rem;
 }
 
-.savings-fields,
 .savings-line {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.savings-fields {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.5rem;
   width: 100%;
   min-width: 0;
 }
 
-.savings-line.is-open {
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.05fr);
-  align-items: end;
-}
-
-.savings-line label {
+.savings-line label,
+.savings-fields label {
   min-width: 0;
   overflow: hidden;
 }
 
 .switch-compact {
-  width: auto;
+  width: 100%;
   height: var(--control-h);
-  padding: 0 0.6rem;
+  flex: none;
+  padding: 0 0.95rem;
   gap: 0.4rem;
-  white-space: nowrap;
+}
+
+@media (max-width: 380px) {
+  .savings-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .field-date {
@@ -2290,6 +2360,9 @@ html.light .chip {
 .wish-screen__photo > .image-fallback,
 .wish-screen__photo > .photo-stage,
 .wish-screen__photo > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
   height: 100%;
 }
 
@@ -2486,7 +2559,15 @@ html.light .knob-track[data-on="true"] .knob {
 }
 
 html.light .kind-chip[aria-pressed="true"],
-html.light .priority-chip[aria-pressed="true"],
+html.light .priority-chip[aria-pressed="true"] {
+  color: white;
+}
+
+html.light .priority-chip.priority-high[aria-pressed="true"],
+html.light .priority-chip.priority-critical[aria-pressed="true"] {
+  color: white;
+}
+
 html.light .find-btn {
   background: rgba(109, 77, 255, 0.1);
   color: #3c2a86;

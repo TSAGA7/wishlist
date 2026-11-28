@@ -15,6 +15,7 @@ import { OverlayFrame, useOverlayClose } from "@/components/overlay-frame";
 import { useDismissable } from "@/hooks/use-dismissable";
 import { SavingsPanel } from "@/features/savings/savings-panel";
 import { Thumb } from "@/features/wishes/thumb";
+import { canonicalUrl } from "@/lib/draft";
 import { kindLabel } from "@/lib/kinds";
 import { formatMoney } from "@/lib/money";
 import type { Wish } from "@/types/wishlist";
@@ -73,6 +74,7 @@ function WishScreen({
   const menuRef = useDismissable(menu, () => setMenu(false), menuBtnRef);
   const deadline = wish.savingsEnabled ? formatDeadline(wish.deadline) : null;
   const cost = wish.price ?? wish.targetAmount;
+  const link = canonicalUrl(wish.url);
 
   useEffect(() => {
     backRef.current?.focus();
@@ -209,8 +211,8 @@ function WishScreen({
           </div>
         ) : null}
 
-        {wish.url ? (
-          <a className="wish-screen__link" href={wish.url} target="_blank" rel="noreferrer">
+        {link ? (
+          <a className="wish-screen__link" href={link} target="_blank" rel="noopener noreferrer">
             <ExternalLink className="size-4" /> Открыть ссылку
           </a>
         ) : null}

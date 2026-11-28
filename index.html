@@ -39,7 +39,6 @@
       #root {
         margin: 0;
         height: 100%;
-        height: 100dvh;
         background: #090b12;
         color: #f5f7fb;
       }
@@ -48,7 +47,10 @@
       }
       .boot-shell {
         position: fixed;
-        inset: 0;
+        top: 0;
+        right: 0;
+        left: 0;
+        height: 100dvh;
         display: flex;
         flex-direction: column;
         background:
@@ -58,10 +60,15 @@
       }
       .boot-shell__bar {
         height: 4.15rem;
-        margin: auto 0.5rem calc(10px + env(safe-area-inset-bottom, 0px));
+        margin: auto 0.5rem 10px;
         border-radius: 1.4rem;
         background: rgba(16, 18, 28, 0.55);
         border: 1px solid rgba(255, 255, 255, 0.14);
+      }
+      @media (display-mode: standalone), (display-mode: fullscreen) {
+        .boot-shell__bar {
+          margin-bottom: env(safe-area-inset-bottom, 0px);
+        }
       }
     </style>
   </head>

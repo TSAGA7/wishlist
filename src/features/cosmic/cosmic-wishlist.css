@@ -180,24 +180,25 @@
 
 .cw-filters button {
   flex: 0 0 auto;
-  min-height: 34px;
-  padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  height: 2.35rem;
+  min-height: 2.35rem;
+  padding: 0 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 999px;
   color: rgba(255, 255, 255, 0.86);
-  background: rgba(31, 27, 49, 0.5);
+  background: transparent;
   font: inherit;
-  font-size: 12px;
+  font-size: 0.82rem;
   white-space: nowrap;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  transition: background 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
-.cw-filters button.active {
-  border-color: rgba(255, 255, 255, 0.9);
-  color: #292139;
-  background: linear-gradient(135deg, #fff, #eee5ff);
-  box-shadow: 0 3px 16px rgba(255, 255, 255, 0.17);
+.cw-filters button.active,
+.cw-filters button[aria-pressed="true"] {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(180deg, #b9a4ff, #8b6cff);
+  box-shadow: 0 6px 16px rgba(109, 77, 255, 0.35);
   font-weight: 700;
 }
 

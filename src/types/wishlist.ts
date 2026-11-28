@@ -3,11 +3,12 @@ import type { Currency } from "@/lib/money";
 export type WishKind = "purchase" | "trip" | "venue" | "place" | "event";
 export type Priority = "low" | "medium" | "high" | "critical";
 export type Screen = "home" | "map" | "collections" | "archive" | "cabinet";
-export type DockTab = Screen;
+/** Bottom-bar tabs. Archive stays a screen, reached from the cabinet. */
+export type DockTab = Exclude<Screen, "archive">;
 export type HomeFilter = "all" | "purchases" | "trips" | "venues" | "places" | "events";
 export type ThemeMode = "light" | "dark" | "system";
 
-export const DEFAULT_DOCK_ORDER: DockTab[] = ["home", "map", "collections", "archive", "cabinet"];
+export const DEFAULT_DOCK_ORDER: DockTab[] = ["home", "map", "collections", "cabinet"];
 
 export interface SavingOperation {
   id: string;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bookmark, ChevronRight, Download, Monitor, Moon, RefreshCw, Rows3, Smartphone, Sun, Upload } from "lucide-react";
+import { Archive, Bookmark, ChevronRight, Download, Monitor, Moon, RefreshCw, Rows3, Smartphone, Sun, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { HomeScreenSettings, TabOrderSettings } from "@/components/shell/nav-settings";
 import { CURRENCIES, currencyLabel, type Currency } from "@/lib/money";
@@ -17,6 +17,7 @@ export function CabinetScreen({
   onImport,
   onInstall,
   onCheckUpdate,
+  onOpenArchive,
 }: {
   theme: ThemeMode;
   currency: Currency;
@@ -28,6 +29,7 @@ export function CabinetScreen({
   onImport: () => void;
   onInstall: () => void;
   onCheckUpdate: () => void;
+  onOpenArchive: () => void;
 }) {
   const [panel, setPanel] = useState<"home" | "order" | null>(null);
 
@@ -85,6 +87,15 @@ export function CabinetScreen({
       </div>
 
       <div className="settings-list">
+        <button type="button" className="row glass" onClick={onOpenArchive}>
+          <Archive className="size-5" />
+          <span className="grow">
+            <strong>Архив</strong>
+            <small>Исполненные и отложенные желания</small>
+          </span>
+          <ChevronRight className="size-4 shrink-0" />
+        </button>
+
         <div className="row glass appearance">
           <span className="section-label">Навигация</span>
           <button type="button" className="row glass nav-entry" onClick={() => setPanel("home")}>

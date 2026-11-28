@@ -71,10 +71,13 @@ export function emptyCollectionDraft(): CollectionDraft {
 export function canonicalUrl(raw: string): string {
   const value = raw.trim();
   if (!value) return "";
-  const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(value);
+  if (scheme && scheme[1].toLowerCase() !== "http" && scheme[1].toLowerCase() !== "https") return "";
+  const withScheme = scheme ? value : `https://${value}`;
   try {
     const url = new URL(withScheme);
     if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    if (!url.hostname) return "";
     return url.toString();
   } catch {
     return "";
