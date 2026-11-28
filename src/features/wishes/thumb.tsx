@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
-import { getPhotoBlob } from "@/database/wishlist-db";
-import { isLocalPhotoRef, placeholderFor } from "@/services/paths";
+import { placeholderFor } from "@/services/paths";
+import { useWishImage } from "@/features/wishes/use-wish-image";
 import type { WishKind } from "@/types/wishlist";
 
 export function Thumb({
@@ -8,59 +7,68 @@ export function Thumb({
   kind = "purchase",
   className = "thumb",
   priority = false,
+  frame = "thumb",
 }: {
   src: string | null;
   kind?: WishKind;
   className?: string;
   /** When false, browser may defer loading until near viewport. */
   priority?: boolean;
+  /** `cover` fills a photo frame and offers a retry. `thumb` stays a small preview. */
+  frame?: "thumb" | "cover";
 }) {
-  const [failed, setFailed] = useState(false);
-  const [resolved, setResolved] = useState<string | null>(null);
+  const image = useWishImage(src);
+  const placeholder = placeholderFor(kind);
 
-  useEffect(() => {
-    let alive = true;
-    let objectUrl: string | null = null;
-    setFailed(false);
-    setResolved(null);
-    if (!src) return;
-    if (isLocalPhotoRef(src)) {
-      void getPhotoBlob(src).then((blob) => {
-        if (!alive || !blob) {
-          if (alive) setFailed(true);
-          return;
-        }
-        objectUrl = URL.createObjectURL(blob);
-        setResolved(objectUrl);
-      });
-      return () => {
-        alive = false;
-        if (objectUrl) URL.revokeObjectURL(objectUrl);
-      };
-    }
-    setResolved(src);
-    return () => {
-      alive = false;
-    };
-  }, [src]);
+  if (!src || image.phase === "empty") {
+    return <img src={placeholder} alt="" className={frame === "cover" ? "photo-stage__img" : className} loading="lazy" decoding="async" />;
+  }
 
-  if (!src || failed || !resolved) {
+  if (image.phase === "loading" && !image.url) {
     return (
-      <span className={`${className} thumb-fallback`}>
-        <img src={placeholderFor(kind)} alt="" className={className} loading="lazy" decoding="async" />
+      <span className={frame === "cover" ? "photo-stage" : `${className} thumb-fallback`}>
+        <span className="photo-spinner" aria-hidden="true" />
       </span>
     );
   }
 
+  if (image.phase === "error" || !image.url) {
+    return frame === "cover" ? (
+      <ImageFallback kind={kind} onRetry={image.retry} />
+    ) : (
+      <img src={placeholder} alt="" className={className} loading="lazy" decoding="async" />
+    );
+  }
+
+  if (frame === "thumb") {
+    return (
+      <img
+        key={image.attempt}
+        src={image.url}
+        alt=""
+        className={className}
+        loading={priority ? "eager" : "lazy"}
+        decoding="async"
+        onLoad={image.onLoad}
+        onError={image.onError}
+      />
+    );
+  }
+
   return (
-    <img
-      src={resolved}
-      alt=""
-      className={className}
-      loading={priority ? "eager" : "lazy"}
-      decoding="async"
-      onError={() => setFailed(true)}
-    />
+    <span className="photo-stage">
+      {image.phase === "loading" ? <span className="photo-spinner" aria-hidden="true" /> : null}
+      <img
+        key={image.attempt}
+        src={image.url}
+        alt=""
+        className="photo-stage__img"
+        loading={priority ? "eager" : "lazy"}
+        decoding="async"
+        onLoad={image.onLoad}
+        onError={image.onError}
+      />
+    </span>
   );
 }
 

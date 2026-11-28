@@ -44,7 +44,7 @@ export function AppDock({
   }
 
   return (
-    <nav className="dock glass" aria-label="Основная навигация" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+    <nav className="dock" aria-label="Основная навигация" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
       {items.map((id) => (
         <button
           key={id}

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type CSSProperties } from "react";
+import { useWishImage } from "@/features/wishes/use-wish-image";
 import {
   Bookmark,
   CalendarDays,
@@ -117,12 +118,6 @@ function Stars() {
   );
 }
 
-function imageSrc(src: string, nonce: number): string {
-  if (nonce === 0) return src;
-  if (src.startsWith("data:") || src.startsWith("blob:")) return src;
-  return `${src}${src.includes("?") ? "&" : "?"}cw=${nonce}`;
-}
-
 function Planet({
   wish,
   index,
@@ -134,15 +129,13 @@ function Planet({
   onOpen: (wish: CosmicWish) => void;
   onRetry?: (wish: CosmicWish) => void;
 }) {
-  const [failed, setFailed] = useState(false);
-  const [nonce, setNonce] = useState(0);
+  const source = wish.image?.trim() ? wish.image.trim() : "";
+  const image = useWishImage(source || null);
   const progress =
     wish.targetAmount && wish.targetAmount > 0
       ? Math.min(100, Math.round(((wish.savedAmount || 0) / wish.targetAmount) * 100))
       : null;
   const priority = wish.size === "moon" ? "" : priorityLabel(wish.priority);
-  const source = wish.image?.trim() ? wish.image.trim() : "";
-  const image = source && !failed ? imageSrc(source, nonce) : "";
   const showProgress =
     wish.savingsEnabled !== false &&
     wish.size !== "moon" &&
@@ -167,20 +160,23 @@ function Planet({
       aria-label={`Открыть желание: ${wish.title}`}
     >
       <span className="cw-sphere">
-      <span className={`cw-planet__surface ${image ? "" : "is-placeholder"}`}>
-        {image ? (
+      <span className={`cw-planet__surface ${image.url && image.phase !== "error" ? "" : "is-placeholder"}`}>
+        {image.url && image.phase !== "error" ? (
           <img
-            src={image}
+            key={image.attempt}
+            src={image.url}
             alt=""
             draggable={false}
             loading={index > 3 ? "lazy" : "eager"}
-            onError={() => setFailed(true)}
+            onLoad={image.onLoad}
+            onError={image.onError}
           />
         ) : (
           <span className="cw-placeholder">
             <KindIcon kind={wish.kind} />
           </span>
         )}
+        {image.phase === "loading" ? <span className="cw-spinner" aria-hidden="true" /> : null}
         <span className="cw-shade" />
         <span className="cw-rim" />
       </span>
@@ -208,7 +204,7 @@ function Planet({
           ) : null}
         </span>
       )}
-      {failed ? (
+      {image.phase === "error" ? (
         <button
           type="button"
           className="cw-retry"
@@ -216,8 +212,7 @@ function Planet({
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
-            setFailed(false);
-            setNonce((value) => value + 1);
+            image.retry();
             onRetry?.(wish);
           }}
         >

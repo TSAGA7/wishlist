@@ -14,6 +14,8 @@ export function applyThemeMode(mode: ThemeMode): boolean {
   document.documentElement.classList.toggle("light", !dark);
   document.documentElement.classList.toggle("dark", dark);
   document.documentElement.style.colorScheme = dark ? "dark" : "light";
+  const theme = document.querySelector('meta[name="theme-color"]');
+  if (theme) theme.setAttribute("content", dark ? "#090b12" : "#e7eef8");
   return dark;
 }
 

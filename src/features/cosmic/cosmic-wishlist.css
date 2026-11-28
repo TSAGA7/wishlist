@@ -252,7 +252,7 @@
   z-index: 1;
   top: calc(max(14px, env(safe-area-inset-top)) + 120px);
   right: 0;
-  bottom: var(--cw-dock, calc(96px + env(safe-area-inset-bottom)));
+  bottom: 0;
   left: var(--cw-side, 0px);
   overflow: hidden;
   touch-action: none;
@@ -358,6 +358,15 @@
     inset 12px 10px 24px rgba(255, 216, 246, 0.18),
     0 0 12px rgba(247, 190, 255, 0.55),
     0 0 35px rgba(173, 114, 234, 0.35);
+}
+
+.cw-spinner {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  margin: -0.7rem 0 0 -0.7rem;
+  pointer-events: none;
 }
 
 .cw-planet__surface img {

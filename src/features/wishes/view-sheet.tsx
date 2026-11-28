@@ -14,7 +14,7 @@ import {
 import { OverlayFrame, useOverlayClose } from "@/components/overlay-frame";
 import { useDismissable } from "@/hooks/use-dismissable";
 import { SavingsPanel } from "@/features/savings/savings-panel";
-import { ImageFallback, Thumb } from "@/features/wishes/thumb";
+import { Thumb } from "@/features/wishes/thumb";
 import { kindLabel } from "@/lib/kinds";
 import { formatMoney } from "@/lib/money";
 import type { Wish } from "@/types/wishlist";
@@ -71,8 +71,6 @@ function WishScreen({
   const [menu, setMenu] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const menuRef = useDismissable(menu, () => setMenu(false), menuBtnRef);
-  const [imgFailed, setImgFailed] = useState(false);
-  const [imgKey, setImgKey] = useState(0);
   const deadline = wish.savingsEnabled ? formatDeadline(wish.deadline) : null;
   const cost = wish.price ?? wish.targetAmount;
 
@@ -159,25 +157,7 @@ function WishScreen({
 
       <div className="wish-screen__body">
         <div className="wish-screen__photo">
-          {!wish.image ? (
-            <Thumb src={null} kind={wish.kind} className="wish-screen__photo-img" priority />
-          ) : imgFailed ? (
-            <ImageFallback
-              kind={wish.kind}
-              onRetry={() => {
-                setImgFailed(false);
-                setImgKey((k) => k + 1);
-              }}
-            />
-          ) : (
-            <Thumb
-              key={imgKey}
-              src={wish.image}
-              kind={wish.kind}
-              className="wish-screen__photo-img"
-              priority
-            />
-          )}
+          <Thumb src={wish.image} kind={wish.kind} className="wish-screen__photo-img" priority frame="cover" />
         </div>
 
         <h1 className="wish-screen__title">{wish.title}</h1>

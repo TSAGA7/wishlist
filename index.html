@@ -19,10 +19,12 @@
           r.classList.toggle("light", !dark);
           r.classList.toggle("dark", dark);
           r.style.colorScheme = dark ? "dark" : "light";
+          var theme = document.querySelector('meta[name="theme-color"]');
+          if (theme) theme.setAttribute("content", dark ? "#090b12" : "#e7eef8");
         } catch (e) {}
       })();
     </script>
-    <meta name="theme-color" content="#0c1018" />
+    <meta name="theme-color" content="#090b12" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -37,7 +39,8 @@
       #root {
         margin: 0;
         height: 100%;
-        background: #0c1018;
+        height: 100dvh;
+        background: #090b12;
         color: #f5f7fb;
       }
       body {

@@ -8,8 +8,8 @@
   "display": "standalone",
   "orientation": "portrait",
   "lang": "ru",
-  "background_color": "#0c1018",
-  "theme_color": "#0c1018",
+  "background_color": "#090b12",
+  "theme_color": "#090b12",
   "icons": [
     {
       "src": "./icon-192.png",

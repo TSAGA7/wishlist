@@ -52,11 +52,16 @@
   --hero-c: #6d82b4;
   --bar: rgba(255, 255, 255, 0.85);
   --blur: 22px;
-  /* Same idea as My World .softbar: a small lift plus the home-indicator inset, never a second viewport shrink. */
+  --app-canvas:
+    radial-gradient(900px 520px at 12% -8%, rgba(255, 154, 112, 0.55), transparent 58%),
+    radial-gradient(760px 480px at 100% 0%, rgba(88, 118, 196, 0.42), transparent 52%),
+    radial-gradient(900px 640px at 70% 110%, rgba(46, 36, 72, 0.55), transparent 50%),
+    linear-gradient(180deg, #24304a 0%, #121826 46%, #090b12 100%);
+  /* Safe area is applied once, as the dock lift. The shell itself is not shortened by it. */
   --safe-b: env(safe-area-inset-bottom, 0px);
-  --dock-offset: calc(10px + var(--safe-b));
+  --dock-offset: max(10px, var(--safe-b));
   --dock-height: 4.15rem;
-  --dock-clearance: calc(var(--dock-height) + var(--dock-offset) + 12px);
+  --dock-clearance: calc(var(--dock-height) + var(--dock-offset) + 16px);
   --control-h: 3rem;
   --radius-sm: 0.9rem;
   --radius-md: 1.05rem;
@@ -90,6 +95,10 @@ html.light {
   --stroke-strong: rgba(28, 32, 52, 0.16);
   --field: rgba(255, 255, 255, 0.88);
   --dock: rgba(255, 255, 255, 0.86);
+  --app-canvas:
+    radial-gradient(900px 520px at 10% -10%, rgba(255, 186, 150, 0.85), transparent 56%),
+    radial-gradient(760px 480px at 100% 0%, rgba(170, 196, 240, 0.9), transparent 50%),
+    linear-gradient(180deg, #f3f6fb 0%, #e4ebf5 100%);
   --color-fg: #171a22;
   --color-muted: #5c6578;
   --color-primary: #171a22;
@@ -107,11 +116,11 @@ html.light #root {
   background-color: #e8eef8;
 }
 
-html.light body {
-  background-image:
-    radial-gradient(900px 520px at 10% -10%, rgba(255, 186, 150, 0.75), transparent 56%),
-    radial-gradient(820px 480px at 100% 0%, rgba(176, 196, 255, 0.85), transparent 52%),
-    linear-gradient(180deg, #f6f3ff 0%, #e7eef8 100%);
+html.light body,
+html.light #root,
+html.light .shell {
+  background-color: #e7eef8;
+  background-image: var(--app-canvas);
 }
 
 html.light .sheet,
@@ -128,36 +137,27 @@ html.light .stage {
   body,
   #root {
     height: 100%;
+    height: 100dvh;
   }
 
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    background-color: #090b12;
+    background-image: var(--app-canvas);
   }
 
   body,
   #root {
     overflow: hidden;
+    background-color: #090b12;
+    background-image: var(--app-canvas);
   }
 
   body {
     margin: 0;
     font-family: var(--font-sans);
     color: var(--ink);
-    background-color: #0c1018;
-    background-image:
-      radial-gradient(900px 520px at 12% -8%, rgba(255, 154, 112, 0.55), transparent 58%),
-      radial-gradient(760px 480px at 100% 0%, rgba(88, 118, 196, 0.42), transparent 52%),
-      radial-gradient(900px 640px at 70% 110%, rgba(46, 36, 72, 0.55), transparent 50%),
-      linear-gradient(180deg, #24304a 0%, #121826 38%, #0b0e16 100%);
-  }
-
-  html.light body {
-    background-color: #e7eef8;
-    background-image:
-      radial-gradient(900px 520px at 10% -10%, rgba(255, 186, 150, 0.85), transparent 56%),
-      radial-gradient(760px 480px at 100% 0%, rgba(170, 196, 240, 0.9), transparent 50%),
-      linear-gradient(180deg, #f3f6fb 0%, #e4ebf5 100%);
   }
 
   button:not(:disabled),
@@ -186,8 +186,15 @@ html.light .stage {
 
 .shell {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  left: 0;
+  /* Height only. `bottom`/`inset` would stretch this to the layout viewport and ignore dvh. */
+  height: 100%;
+  height: 100dvh;
   overflow: hidden;
+  background-color: #090b12;
+  background-image: var(--app-canvas);
 }
 
 .stage {
@@ -438,7 +445,7 @@ html.light .badge {
 }
 
 .dock {
-  position: fixed;
+  position: absolute;
   z-index: 30;
   right: 0.5rem;
   bottom: var(--dock-offset);
@@ -452,6 +459,11 @@ html.light .badge {
   padding: 0.28rem;
   border-radius: 1.4rem;
   touch-action: manipulation;
+  background: var(--dock);
+  border: 1px solid var(--stroke);
+  backdrop-filter: blur(var(--blur)) saturate(1.45);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.45);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
 }
 
 .dock button {
@@ -493,7 +505,7 @@ html.light .dock button[aria-current="page"] {
 }
 
 .fab {
-  position: fixed;
+  position: absolute;
   z-index: 31;
   right: max(1.1rem, calc(50% - 15.5rem));
   bottom: calc(var(--dock-height) + var(--dock-offset) + 0.35rem);
@@ -940,7 +952,9 @@ textarea.field {
 @media (min-width: 960px) {
   .shell {
     position: relative;
-    inset: auto;
+    top: auto;
+    right: auto;
+    left: auto;
     display: grid;
     grid-template-columns: 272px minmax(0, 1fr);
     gap: 0.75rem;
@@ -954,6 +968,7 @@ textarea.field {
   body,
   #root {
     height: auto;
+    min-height: 100dvh;
     overflow: auto;
   }
 
@@ -1275,7 +1290,11 @@ html.light .chip {
 .overlay-frame {
   position: fixed;
   z-index: 70;
-  inset: 0;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 100%;
+  height: 100dvh;
   isolation: isolate;
   overscroll-behavior: none;
   touch-action: manipulation;
@@ -1501,7 +1520,11 @@ html.light .chip {
 
 .wish-screen__foot {
   flex: none;
-  padding: 0.65rem 1rem calc(10px + env(safe-area-inset-bottom, 0px));
+  margin: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0.65rem 1rem max(0.75rem, env(safe-area-inset-bottom, 0px));
 }
 
 .overlay-frame--center .overlay-backdrop {
@@ -2120,8 +2143,160 @@ html.light .chip {
 
 .savings {
   margin-top: 0.75rem;
-  padding: 0.95rem;
+  padding: 0.95rem 0.95rem 0.8rem;
   border-radius: 1.2rem;
+}
+
+.savings-metrics {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.savings-metric small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.savings-metric strong {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.savings-metric.is-end {
+  text-align: right;
+}
+
+.savings-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
+
+.savings-progress__track {
+  height: 0.55rem;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.savings-progress__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c9a0ff, #f0a0c8 55%, #f0b09a);
+}
+
+.savings-progress__pct {
+  min-width: 2.6rem;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.savings-deadline {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.8rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.savings-deadline strong {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.savings-hint {
+  margin-top: 0.55rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.savings-add {
+  display: flex;
+  width: 100%;
+  height: 2.9rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(139, 108, 255, 0.34);
+  color: white;
+  font-weight: 650;
+}
+
+.savings-add:active {
+  transform: scale(0.985);
+}
+
+.add-modal__now {
+  margin: -0.2rem 0 0.85rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.add-modal__now strong {
+  color: var(--text);
+}
+
+.photo-stage {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.photo-stage__img,
+.wish-screen__photo > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-spinner,
+.cw-spinner {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  border-top-color: white;
+  animation: photo-spin 0.8s linear infinite;
+}
+
+.photo-stage > .photo-spinner,
+.thumb-fallback > .photo-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin: -0.67rem 0 0 -0.67rem;
+}
+
+.thumb-fallback {
+  position: relative;
+}
+
+.wish-screen__photo > .image-fallback,
+.wish-screen__photo > .photo-stage,
+.wish-screen__photo > img {
+  height: 100%;
+}
+
+@keyframes photo-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .completed-modal {
