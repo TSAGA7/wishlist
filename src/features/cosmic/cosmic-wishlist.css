@@ -275,7 +275,7 @@
   will-change: transform;
 }
 
-.cw-orbits {
+.cw-constellation {
   position: absolute;
   z-index: 0;
   inset: 0;
@@ -285,13 +285,25 @@
   pointer-events: none;
 }
 
-.cw-orbits ellipse,
-.cw-orbits path {
+.cw-constellation path {
   fill: none;
-  stroke: url(#cw-orbit-gradient);
-  stroke-width: 1.15;
-  opacity: 0.68;
-  filter: drop-shadow(0 0 5px rgba(235, 164, 255, 0.8));
+  stroke: url(#cw-constellation-gradient);
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  opacity: 0;
+  filter: drop-shadow(0 0 4px rgba(235, 164, 255, 0.58));
+  animation: cw-constellation-appear 720ms ease-out forwards;
+}
+
+@keyframes cw-constellation-appear {
+  from {
+    opacity: 0;
+    stroke-dasharray: 0 1000;
+  }
+  to {
+    opacity: 0.72;
+    stroke-dasharray: 1000 0;
+  }
 }
 
 .cw-planet {
@@ -943,7 +955,13 @@
 @media (prefers-reduced-motion: reduce) {
   .cw-star,
   .cw-planet,
-  .cw-nebula {
+  .cw-nebula,
+  .cw-constellation path {
     animation: none !important;
+  }
+
+  .cw-constellation path {
+    opacity: 0.72;
+    stroke-dasharray: none;
   }
 }

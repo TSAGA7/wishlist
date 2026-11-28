@@ -88,6 +88,60 @@ function seeded(n: number): number {
   return x - Math.floor(x);
 }
 
+/**
+ * Build a minimal connected constellation for the currently visible wishes.
+ * Prim's algorithm returns exactly n - 1 edges; no decorative paths are drawn
+ * for an empty map or for a single planet.
+ */
+function buildConstellationPaths(wishes: CosmicWish[]): string[] {
+  if (wishes.length < 2) return [];
+
+  const visited = new Set<number>([0]);
+  const paths: string[] = [];
+
+  while (visited.size < wishes.length) {
+    let bestFrom = -1;
+    let bestTo = -1;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (const from of visited) {
+      const a = wishes[from]!;
+      for (let to = 0; to < wishes.length; to += 1) {
+        if (visited.has(to)) continue;
+        const b = wishes[to]!;
+        const dx = (b.x - a.x) * 10;
+        const dy = (b.y - a.y) * 10;
+        const distance = dx * dx + dy * dy;
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestFrom = from;
+          bestTo = to;
+        }
+      }
+    }
+
+    if (bestFrom < 0 || bestTo < 0) break;
+
+    const a = wishes[bestFrom]!;
+    const b = wishes[bestTo]!;
+    const x1 = a.x * 10;
+    const y1 = a.y * 10;
+    const x2 = b.x * 10;
+    const y2 = b.y * 10;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.max(1, Math.hypot(dx, dy));
+    const bend = Math.min(34, length * 0.1) * ((bestFrom + bestTo) % 2 === 0 ? 1 : -1);
+    const controlX = (x1 + x2) / 2 - (dy / length) * bend;
+    const controlY = (y1 + y2) / 2 + (dx / length) * bend;
+
+    paths.push(`M ${x1.toFixed(2)} ${y1.toFixed(2)} Q ${controlX.toFixed(2)} ${controlY.toFixed(2)} ${x2.toFixed(2)} ${y2.toFixed(2)}`);
+    visited.add(bestTo);
+  }
+
+  return paths;
+}
+
 const STARS = Array.from({ length: 190 }, (_, index) => ({
   id: index,
   x: seeded(index + 1) * 100,
@@ -251,6 +305,8 @@ export default function CosmicWishlist({
     return query ? list.filter((wish) => `${wish.title} ${wish.subtitle || ""}`.toLocaleLowerCase("ru").includes(query)) : list;
   }, [wishes, filter, search]);
 
+  const constellationPaths = useMemo(() => buildConstellationPaths(visible), [visible]);
+
   const worldStyle: CSSProperties = {
     transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.scale})`,
   };
@@ -314,19 +370,20 @@ export default function CosmicWishlist({
         onPointerCancel={onPointerUp}
       >
         <div className="cw-world" style={worldStyle}>
-          <svg className="cw-orbits" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
-            <defs>
-              <linearGradient id="cw-orbit-gradient" x1="0" y1="0" x2="1" y2="1">
-                <stop stopColor="#ffd0ee" stopOpacity="0.08" />
-                <stop offset="50%" stopColor="#f3b5ff" stopOpacity="0.78" />
-                <stop offset="100%" stopColor="#9dc8ff" stopOpacity="0.08" />
-              </linearGradient>
-            </defs>
-            <ellipse cx="500" cy="510" rx="390" ry="255" transform="rotate(-23 500 510)" />
-            <ellipse cx="500" cy="510" rx="310" ry="405" transform="rotate(28 500 510)" />
-            <path d="M95 590 C240 390 340 335 500 505 S760 710 910 360" />
-            <path d="M180 180 C370 285 570 230 815 205" />
-          </svg>
+          {constellationPaths.length > 0 ? (
+            <svg className="cw-constellation" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="cw-constellation-gradient" x1="0" y1="0" x2="1" y2="1">
+                  <stop stopColor="#ffd0ee" stopOpacity="0.18" />
+                  <stop offset="50%" stopColor="#e9b8ff" stopOpacity="0.82" />
+                  <stop offset="100%" stopColor="#a9c9ff" stopOpacity="0.24" />
+                </linearGradient>
+              </defs>
+              {constellationPaths.map((path, index) => (
+                <path key={`${visible[index]?.id ?? "edge"}-${index}`} d={path} vectorEffect="non-scaling-stroke" />
+              ))}
+            </svg>
+          ) : null}
           {visible.map((wish) => (
             <Planet
               key={wish.id}
