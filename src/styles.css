@@ -136,8 +136,11 @@ html.light .stage {
   html,
   body,
   #root {
+    width: 100%;
     height: 100%;
-    height: 100dvh;
+    min-height: 100%;
+    margin: 0;
+    overflow: hidden;
   }
 
   html {
@@ -186,15 +189,23 @@ html.light .stage {
 
 .shell {
   position: fixed;
-  top: 0;
+  top: var(--app-viewport-top, 0px);
   right: 0;
   left: 0;
-  /* Height only. `bottom`/`inset` would stretch this to the layout viewport and ignore dvh. */
-  height: 100%;
-  height: 100dvh;
+  width: 100%;
+  height: var(--app-viewport-height, 100dvh);
+  min-height: 0;
   overflow: hidden;
   background-color: #090b12;
   background-image: var(--app-canvas);
+}
+
+html.map-mode,
+html.map-mode body,
+html.map-mode #root,
+html.map-mode .shell {
+  background-color: #080a19;
+  background-image: none;
 }
 
 .stage {
@@ -719,6 +730,45 @@ html.light .currency-select {
   color: var(--muted);
 }
 
+.storage-error {
+  display: flex;
+  width: min(100%, 36rem);
+  min-height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 0 auto;
+  padding: calc(1.4rem + env(safe-area-inset-top)) 1.25rem calc(1.4rem + var(--safe-b));
+}
+
+.storage-error h1 {
+  font-size: 1.45rem;
+  letter-spacing: -0.03em;
+}
+
+.storage-error p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.storage-error__detail {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.storage-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.row.nav-entry:disabled {
+  opacity: 0.65;
+}
+
 .segment button[aria-pressed="true"] {
   background: rgba(255, 255, 255, 0.16);
   color: var(--ink);
@@ -742,8 +792,12 @@ html.light .segment button[aria-pressed="true"] {
 
 .sheet-root {
   position: fixed;
-  inset: 0;
   z-index: 40;
+  top: var(--app-viewport-top, 0px);
+  right: 0;
+  left: 0;
+  width: 100%;
+  height: var(--app-viewport-height, 100dvh);
 }
 
 .backdrop {
@@ -757,7 +811,7 @@ html.light .segment button[aria-pressed="true"] {
   right: 0;
   bottom: 0;
   left: 0;
-  max-height: 92dvh;
+  max-height: 92%;
   overflow: auto;
   padding: 0.55rem 1rem calc(1.1rem + env(safe-area-inset-bottom));
   border-radius: 1.7rem 1.7rem 0 0;
@@ -833,6 +887,11 @@ textarea.field {
 
 .save:active {
   transform: scale(0.985);
+}
+
+.save:disabled,
+.cancel:disabled {
+  opacity: 0.65;
 }
 
 .cancel {
@@ -959,7 +1018,7 @@ textarea.field {
     grid-template-columns: 272px minmax(0, 1fr);
     gap: 0.75rem;
     height: auto;
-    min-height: 100dvh;
+    min-height: var(--app-viewport-height, 100dvh);
     padding: 1rem 1.1rem;
     overflow: visible;
   }
@@ -968,15 +1027,19 @@ textarea.field {
   body,
   #root {
     height: auto;
-    min-height: 100dvh;
+    min-height: var(--app-viewport-height, 100dvh);
     overflow: auto;
+  }
+
+  .storage-error {
+    grid-column: 1 / -1;
   }
 
   .side {
     position: sticky;
     top: 1rem;
     display: flex;
-    height: calc(100dvh - 2rem);
+    height: calc(var(--app-viewport-height, 100dvh) - 2rem);
     flex-direction: column;
     gap: 0.35rem;
     padding: 1.15rem 0.85rem;
@@ -1290,11 +1353,12 @@ html.light .chip {
 .overlay-frame {
   position: fixed;
   z-index: 70;
-  top: 0;
+  top: var(--app-viewport-top, 0px);
   right: 0;
   left: 0;
-  height: 100%;
-  height: 100dvh;
+  width: 100%;
+  height: var(--app-viewport-height, 100dvh);
+  min-height: 0;
   isolation: isolate;
   overscroll-behavior: none;
   touch-action: manipulation;
@@ -1546,7 +1610,7 @@ html.light .chip {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.28),
     var(--shadow);
-  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1.5rem);
+  max-height: calc(var(--app-viewport-height, 100dvh) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1.5rem);
   overflow: auto;
   transform: translate(-50%, -50%);
   backdrop-filter: blur(36px) saturate(1.7);
@@ -1848,8 +1912,13 @@ html.light .chip {
 
   .map-pane {
     position: fixed;
-    inset: 0;
-    min-height: 100dvh;
+    top: var(--app-viewport-top, 0px);
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: 100%;
+    height: var(--app-viewport-height, 100dvh);
+    min-height: 0;
     overflow: hidden;
     border-radius: 0;
   }

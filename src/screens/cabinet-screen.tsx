@@ -1,10 +1,38 @@
 import { useState } from "react";
-import { Bookmark, ChevronRight, Download, Monitor, Moon, RefreshCw, Rows3, Smartphone, Sun, Upload } from "lucide-react";
+import { Bookmark, ChevronRight, Download, Monitor, Moon, RefreshCw, Rows3, Shield, Smartphone, Sun, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { HomeScreenSettings, TabOrderSettings } from "@/components/shell/nav-settings";
+import type { PersistentStorageStatus } from "@/database/wishlist-db";
 import { CURRENCIES, currencyLabel, type Currency } from "@/lib/money";
+import { STANDALONE_STORAGE_NOTICE } from "@/lib/standalone";
 import { tabLabel, withDockOrder, withHomeScreen, withTabVisibility } from "@/lib/navigation";
 import type { AppSettings, DockTab, ThemeMode } from "@/types/wishlist";
+
+function formatExportDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Europe/Moscow",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatBytes(value: number): string {
+  if (value < 1024) return `${value} Б`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} КБ`;
+  return `${(value / (1024 * 1024)).toFixed(1)} МБ`;
+}
+
+function persistenceLabel(info: PersistentStorageStatus | null): string {
+  if (!info) return "Проверяем защиту хранилища…";
+  if (!info.supported) return "Этот браузер не сообщает, защищено ли хранилище от вытеснения.";
+  if (info.persisted) return "Включена. Браузер реже удаляет данные из-за нехватки места.";
+  return "Не подтверждена. При нехватке места браузер может сам очистить данные.";
+}
 
 export function CabinetScreen({
   theme,
@@ -17,6 +45,9 @@ export function CabinetScreen({
   onImport,
   onInstall,
   onCheckUpdate,
+  exporting,
+  lastExportAt,
+  persistence,
 }: {
   theme: ThemeMode;
   currency: Currency;
@@ -28,6 +59,9 @@ export function CabinetScreen({
   onImport: () => void;
   onInstall: () => void;
   onCheckUpdate: () => void;
+  exporting: boolean;
+  lastExportAt: string | null;
+  persistence: PersistentStorageStatus | null;
 }) {
   const [panel, setPanel] = useState<"home" | "order" | null>(null);
 
@@ -140,20 +174,44 @@ export function CabinetScreen({
 
         <div className="row glass appearance">
           <span className="section-label">Данные</span>
-          <button type="button" className="row glass nav-entry" onClick={onExport}>
+          <button type="button" className="row glass nav-entry" onClick={onExport} disabled={exporting}>
             <Download className="size-5" />
             <span className="grow">
-              <strong>Скачать данные</strong>
-              <small>Резервная копия на устройство</small>
+              <strong>{exporting ? "Подготавливаем резервную копию..." : "Скачать резервную копию"}</strong>
+              <small>
+                {exporting
+                  ? "Собираем желания и локальные фото"
+                  : lastExportAt
+                    ? `Последняя копия: ${formatExportDate(lastExportAt)}`
+                    : "Желания, подборки и локальные фото"}
+              </small>
             </span>
           </button>
-          <button type="button" className="row glass nav-entry" onClick={onImport}>
+          <button type="button" className="row glass nav-entry" onClick={onImport} disabled={exporting}>
             <Upload className="size-5" />
             <span className="grow">
-              <strong>Загрузить данные</strong>
-              <small>Восстановить из копии</small>
+              <strong>Загрузить резервную копию</strong>
+              <small>Восстановить список и фото из файла</small>
             </span>
           </button>
+        </div>
+
+        <div className="row glass appearance">
+          <span className="section-label">
+            <Shield className="mr-1 inline size-4" /> Защита данных на устройстве
+          </span>
+          <p className="storage-note">{STANDALONE_STORAGE_NOTICE}</p>
+          <p className="storage-note">
+            Удаление приложения с экрана «Домой» или очистка данных сайта стирает локальную базу. Повторная установка
+            сама по себе ничего не вернёт: нужна резервная копия или серверная синхронизация. Защита от вытеснения не
+            спасает от удаления вручную.
+          </p>
+          <p className="storage-note">Защита от вытеснения: {persistenceLabel(persistence)}</p>
+          {persistence?.usage != null && persistence.quota != null ? (
+            <p className="storage-note">
+              Занято {formatBytes(persistence.usage)} из {formatBytes(persistence.quota)}.
+            </p>
+          ) : null}
         </div>
 
         <button type="button" className="row glass" onClick={onCheckUpdate}>
