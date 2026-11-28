@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a2a4a"/>
+      <stop offset="100%" stop-color="#0f1a2e"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#g)"/>
+  <g fill="#6d82b4" opacity="0.85">
+    <path d="M40 180 Q100 140 160 170 T280 160 T360 190 L360 300 L40 300 Z" fill="#4a6a9a"/>
+    <path d="M60 160 Q120 120 180 150 T300 140" stroke="#f0b09a" stroke-width="4" fill="none"/>
+    <circle cx="320" cy="80" r="12" fill="#f4f7fb" opacity="0.6"/>
+  </g>
+  <text x="200" y="240" text-anchor="middle" fill="#a8b0c2" font-family="system-ui" font-size="18">Поездка</text>
+</svg>

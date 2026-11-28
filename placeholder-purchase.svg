@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2a1f4a"/>
+      <stop offset="100%" stop-color="#1a1428"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#g)"/>
+  <g fill="#c9a0b4" opacity="0.9">
+    <rect x="140" y="90" width="120" height="90" rx="8"/>
+    <rect x="160" y="110" width="80" height="50" rx="4" fill="#f0b09a"/>
+    <circle cx="200" cy="135" r="8" fill="#2a1f4a"/>
+  </g>
+  <text x="200" y="220" text-anchor="middle" fill="#a8b0c2" font-family="system-ui" font-size="18">Покупка</text>
+</svg>

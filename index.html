@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Wishlist</title>
+    <meta name="description" content="Список желаний: покупки, поездки, накопления — всё на этом устройстве." />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("wishlist-theme");
+          var dark =
+            t === "light"
+              ? false
+              : t === "dark"
+                ? true
+                : window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var r = document.documentElement;
+          r.classList.toggle("light", !dark);
+          r.classList.toggle("dark", dark);
+          r.style.colorScheme = dark ? "dark" : "light";
+          var theme = document.querySelector('meta[name="theme-color"]');
+          if (theme) theme.setAttribute("content", dark ? "#090b12" : "#e7eef8");
+        } catch (e) {}
+      })();
+    </script>
+    <meta name="theme-color" content="#090b12" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Wishlist" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <style>
+      /* Instant shell paint before JS — no white flash while IndexedDB opens. */
+      html,
+      body,
+      #root {
+        margin: 0;
+        height: 100%;
+        background: #090b12;
+        color: #f5f7fb;
+      }
+      body {
+        overflow: hidden;
+      }
+      .boot-shell {
+        position: fixed;
+        top: 0;
+        right: 0;
+        left: 0;
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        background:
+          radial-gradient(900px 520px at 12% -8%, rgba(255, 154, 112, 0.35), transparent 58%),
+          radial-gradient(760px 480px at 100% 0%, rgba(88, 118, 196, 0.32), transparent 52%),
+          linear-gradient(180deg, #24304a 0%, #121826 38%, #0b0e16 100%);
+      }
+      .boot-shell__bar {
+        height: 4.15rem;
+        margin: auto 0.5rem 10px;
+        border-radius: 1.4rem;
+        background: rgba(16, 18, 28, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+      }
+      @media (display-mode: standalone), (display-mode: fullscreen) {
+        .boot-shell__bar {
+          margin-bottom: env(safe-area-inset-bottom, 0px);
+        }
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/index-BY3_Tw6j.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-tgmHwU01.css">
+  </head>
+  <body>
+    <div id="root">
+      <div class="boot-shell" aria-hidden="true">
+        <div class="boot-shell__bar"></div>
+      </div>
+    </div>
+  </body>
+</html>
