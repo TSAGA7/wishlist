@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import {
   Archive,
   Calendar,
+  Check,
   ChevronLeft,
   Coins,
   ExternalLink,
@@ -38,6 +39,7 @@ export function ViewSheet(props: {
   onEdit: () => void;
   onArchive: () => void;
   onDelete: () => void;
+  onComplete: () => void;
   onUpdate: (wish: Wish) => void;
 }) {
   return (
@@ -52,6 +54,7 @@ function WishScreen({
   onEdit,
   onArchive,
   onDelete,
+  onComplete,
   onUpdate,
 }: {
   wish: Wish;
@@ -59,6 +62,7 @@ function WishScreen({
   onEdit: () => void;
   onArchive: () => void;
   onDelete: () => void;
+  onComplete: () => void;
   onUpdate: (wish: Wish) => void;
 }) {
   const dismiss = useOverlayClose();
@@ -66,7 +70,7 @@ function WishScreen({
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
-  const menuRef = useDismissable(menu, () => setMenu(false));
+  const menuRef = useDismissable(menu, () => setMenu(false), menuBtnRef);
   const [imgFailed, setImgFailed] = useState(false);
   const [imgKey, setImgKey] = useState(0);
   const deadline = wish.savingsEnabled ? formatDeadline(wish.deadline) : null;
@@ -207,12 +211,7 @@ function WishScreen({
               <small>Локация</small>
               <strong>{wish.location}</strong>
             </div>
-          ) : (
-            <div className="wish-stat">
-              <small>Тип</small>
-              <strong>{kindLabel(wish.kind)}</strong>
-            </div>
-          )}
+          ) : null}
         </div>
 
         <SavingsPanel wish={wish} onChange={onUpdate} />
@@ -236,6 +235,11 @@ function WishScreen({
           </a>
         ) : null}
       </div>
+      <footer className="wish-screen__foot">
+        <button type="button" className="save" onClick={onComplete}>
+          <Check className="size-5" /> Исполнено
+        </button>
+      </footer>
     </div>
   );
 }

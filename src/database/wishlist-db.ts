@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from "dexie";
 import type { Currency } from "@/lib/money";
 import { isWishKind } from "@/lib/kinds";
+import { normalizeSettings } from "@/lib/navigation";
 import {
   DEFAULT_DOCK_ORDER,
   type AppSettings,
@@ -18,6 +19,8 @@ interface MetaRow {
   currency?: Currency;
   theme?: ThemeMode;
   dockOrder?: DockTab[];
+  homeScreen?: DockTab;
+  dockHidden?: DockTab[];
 }
 
 export interface PhotoRow {
@@ -121,10 +124,13 @@ function database(): WishlistDB {
         }
         const settings = await tx.table("meta").get("settings");
         if (!settings) {
+          const initial = normalizeSettings({ theme: "system", dockOrder: [...DEFAULT_DOCK_ORDER] });
           await tx.table("meta").put({
             key: "settings",
-            theme: "system",
-            dockOrder: [...DEFAULT_DOCK_ORDER],
+            theme: initial.theme,
+            homeScreen: initial.homeScreen,
+            dockOrder: initial.dockOrder,
+            dockHidden: initial.dockHidden,
           });
         }
       });
@@ -153,17 +159,6 @@ function normalizeWish(wish: Wish): Wish {
   };
 }
 
-function normalizeDockOrder(value: unknown): DockTab[] {
-  const allowed = new Set<DockTab>(DEFAULT_DOCK_ORDER);
-  if (!Array.isArray(value)) return [...DEFAULT_DOCK_ORDER];
-  const rest = value.filter((item): item is DockTab => typeof item === "string" && allowed.has(item as DockTab) && item !== "home");
-  const unique = [...new Set(rest)];
-  for (const tab of DEFAULT_DOCK_ORDER) {
-    if (tab !== "home" && !unique.includes(tab)) unique.push(tab);
-  }
-  return ["home", ...unique.filter((tab) => tab !== "home")];
-}
-
 export async function loadWishlist(): Promise<{
   name: string;
   currency: Currency;
@@ -184,20 +179,18 @@ export async function loadWishlist(): Promise<{
   collections.sort((a, b) => a.order - b.order);
   const currency = profile?.currency === "USD" || profile?.currency === "EUR" ? profile.currency : "RUB";
   const space = await store.meta.get("map-space");
-  const theme: ThemeMode =
-    settingsRow?.theme === "light" || settingsRow?.theme === "dark" || settingsRow?.theme === "system"
-      ? settingsRow.theme
-      : "system";
   return {
     name: profile?.name?.trim() || DEFAULT_NAME,
     currency,
     wishes,
     collections,
     mapReady: space?.name === "percent-v1",
-    settings: {
-      theme,
-      dockOrder: normalizeDockOrder(settingsRow?.dockOrder),
-    },
+    settings: normalizeSettings({
+      theme: settingsRow?.theme,
+      homeScreen: settingsRow?.homeScreen,
+      dockOrder: settingsRow?.dockOrder,
+      dockHidden: settingsRow?.dockHidden,
+    }),
   };
 }
 
@@ -214,16 +207,18 @@ export async function saveProfile(patch: { name?: string; currency?: Currency })
 export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
   const store = database();
   const current = await store.meta.get("settings");
-  const next: AppSettings = {
-    theme:
-      patch.theme ??
-      (current?.theme === "light" || current?.theme === "dark" || current?.theme === "system" ? current.theme : "system"),
-    dockOrder: normalizeDockOrder(patch.dockOrder ?? current?.dockOrder),
-  };
+  const next = normalizeSettings({
+    theme: patch.theme ?? current?.theme,
+    homeScreen: patch.homeScreen ?? current?.homeScreen,
+    dockOrder: patch.dockOrder ?? current?.dockOrder,
+    dockHidden: patch.dockHidden ?? current?.dockHidden,
+  });
   await store.meta.put({
     key: "settings",
     theme: next.theme,
+    homeScreen: next.homeScreen,
     dockOrder: next.dockOrder,
+    dockHidden: next.dockHidden,
   });
   return next;
 }

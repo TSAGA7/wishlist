@@ -37,7 +37,18 @@ export function WishCard({
   const [menu, setMenu] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useDismissable(menu, () => setMenu(false));
+  const swallowClick = useRef(false);
+  const menuRef = useDismissable(
+    menu,
+    () => {
+      swallowClick.current = true;
+      setMenu(false);
+      window.setTimeout(() => {
+        swallowClick.current = false;
+      }, 0);
+    },
+    triggerRef,
+  );
   const goal = wish.price ?? wish.targetAmount;
   const showSavings = wish.savingsEnabled && goal != null && goal > 0;
   const progress = showSavings ? Math.min(100, Math.round((wish.savedAmount / goal) * 100)) : 0;
@@ -68,6 +79,10 @@ export function WishCard({
     <article
       className={`wish glass ${lifted ? "lifted" : ""} ${selected ? "wish-selected" : ""}`}
       onClick={() => {
+        if (swallowClick.current || menu) {
+          setMenu(false);
+          return;
+        }
         if (selectMode) onToggleSelect?.();
         else onOpen();
       }}
@@ -136,20 +151,20 @@ export function WishCard({
                     role="menuitem"
                     onClick={() => {
                       setMenu(false);
-                      onEdit();
+                      onComplete();
                     }}
                   >
-                    <Pencil className="size-4" /> Редактировать
+                    <CheckCircle2 className="size-4" /> Исполнено
                   </button>
                   <button
                     type="button"
                     role="menuitem"
                     onClick={() => {
                       setMenu(false);
-                      onComplete();
+                      onEdit();
                     }}
                   >
-                    <CheckCircle2 className="size-4" /> Исполнено
+                    <Pencil className="size-4" /> Редактировать
                   </button>
                   <button
                     type="button"

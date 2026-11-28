@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { visibleDock } from "@/lib/navigation";
 import { X } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { readThemeMode, setTheme } from "@/components/theme-boot";
@@ -33,9 +34,8 @@ type Overlay =
 export function WishlistApp() {
   useAppHeight();
   const store = useWishlist();
-  const firstTab = store.settings.dockOrder[0] ?? "home";
-  const [screen, setScreen] = useState<Screen>(firstTab);
-  const [bootedScreen, setBootedScreen] = useState(false);
+  const [screen, setScreen] = useState<Screen>("home");
+  const bootedScreen = useRef(false);
   const [filter, setFilter] = useState<HomeFilter>("all");
   const [query, setQuery] = useState("");
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -50,11 +50,12 @@ export function WishlistApp() {
   }, []);
 
   useEffect(() => {
-    if (!bootedScreen && store.ready) {
-      setScreen(store.settings.dockOrder[0] ?? "home");
-      setBootedScreen(true);
-    }
-  }, [store.ready, store.settings.dockOrder, bootedScreen]);
+    if (!store.ready || bootedScreen.current) return;
+    bootedScreen.current = true;
+    const visible = visibleDock(store.settings);
+    const home = store.settings.homeScreen;
+    setScreen(visible.includes(home) ? home : (visible[0] ?? "home"));
+  }, [store.ready, store.settings]);
 
   async function handleCheckUpdate() {
     const result = await checkForUpdate();
@@ -129,7 +130,7 @@ export function WishlistApp() {
     <div className={`shell ${mapMode ? "shell-map" : ""} ${overlayOpen ? "shell-locked" : ""}`}>
       <SideNav
         screen={screen}
-        order={store.settings.dockOrder}
+        settings={store.settings}
         counts={{
           wishes: store.wishes.filter((w) => !w.archived).length,
           archive: store.archived.length,
@@ -217,10 +218,10 @@ export function WishlistApp() {
             <CabinetScreen
               theme={theme}
               currency={store.currency}
-              dockOrder={store.settings.dockOrder}
+              settings={store.settings}
               onTheme={applyTheme}
               onCurrency={(value) => void store.changeCurrency(value)}
-              onDockOrder={(order) => void store.changeDockOrder(order)}
+              onSettings={(patch) => void store.updateSettings(patch)}
               onExport={store.exportJson}
               onImport={() => fileRef.current?.click()}
               onInstall={() => setOverlay({ kind: "install" })}
@@ -243,7 +244,14 @@ export function WishlistApp() {
         </div>
       )}
 
-      <AppDock screen={screen} order={store.settings.dockOrder} onNavigate={navigate} />
+      <AppDock
+        screen={screen}
+        settings={store.settings}
+        onNavigate={navigate}
+        onRecoverCabinet={
+          visibleDock(store.settings).includes("cabinet") ? undefined : () => navigate("cabinet")
+        }
+      />
 
       {overlay?.kind === "add-choice" ? (
         <AddChoiceSheet
@@ -262,6 +270,7 @@ export function WishlistApp() {
             setOverlay(null);
           }}
           onDelete={() => requestDelete([overlay.wish])}
+          onComplete={() => requestComplete([overlay.wish])}
           onUpdate={(updated) => {
             void store.upsertWish(updated);
             setOverlay({ kind: "view", wish: updated });
@@ -353,9 +362,9 @@ export function WishlistApp() {
         theme={dark ? "dark" : "light"}
         toastOptions={{
           style: {
-            background: "rgba(20,24,36,0.92)",
-            color: "#f5f7fb",
-            border: "1px solid rgba(255,255,255,0.12)",
+            background: "var(--surface-elevated)",
+            color: "var(--text)",
+            border: "1px solid var(--border)",
             borderRadius: "16px",
             backdropFilter: "blur(16px)",
           },

@@ -1,7 +1,7 @@
 import { currencyFromCode, type Currency } from "@/lib/money";
 import { isWishKind } from "@/lib/kinds";
+import { normalizeSettings } from "@/lib/navigation";
 import type { AppSettings, Collection, DockTab, Priority, SavingOperation, ThemeMode, Wish, WishKind } from "@/types/wishlist";
-import { DEFAULT_DOCK_ORDER } from "@/types/wishlist";
 
 export interface BackupFile {
   version: 3;
@@ -130,20 +130,12 @@ function coerceCollection(item: unknown, index: number): Collection | null {
 function coerceSettings(raw: unknown): AppSettings | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const row = raw as Record<string, unknown>;
-  const theme: ThemeMode =
-    row.theme === "light" || row.theme === "dark" || row.theme === "system" ? row.theme : "system";
-  const allowed = new Set<DockTab>(DEFAULT_DOCK_ORDER);
-  const dockOrder = Array.isArray(row.dockOrder)
-    ? (["home", ...row.dockOrder.filter((t): t is DockTab => typeof t === "string" && allowed.has(t as DockTab) && t !== "home")] as DockTab[])
-    : [...DEFAULT_DOCK_ORDER];
-  const unique: DockTab[] = ["home"];
-  for (const tab of dockOrder) {
-    if (tab !== "home" && !unique.includes(tab)) unique.push(tab);
-  }
-  for (const tab of DEFAULT_DOCK_ORDER) {
-    if (!unique.includes(tab)) unique.push(tab);
-  }
-  return { theme, dockOrder: unique };
+  return normalizeSettings({
+    theme: row.theme as ThemeMode,
+    homeScreen: row.homeScreen as DockTab,
+    dockOrder: Array.isArray(row.dockOrder) ? (row.dockOrder as DockTab[]) : undefined,
+    dockHidden: Array.isArray(row.dockHidden) ? (row.dockHidden as DockTab[]) : undefined,
+  });
 }
 
 export function parseBackup(

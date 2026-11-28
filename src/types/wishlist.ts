@@ -103,7 +103,11 @@ export interface CollectionDraft {
 
 export interface AppSettings {
   theme: ThemeMode;
+  /** Launch section. Independent from its position in the dock. */
+  homeScreen: DockTab;
   dockOrder: DockTab[];
+  /** Tabs omitted from the dock. The launch section is never hidden. */
+  dockHidden: DockTab[];
 }
 
 export const COLLECTION_COLORS = [

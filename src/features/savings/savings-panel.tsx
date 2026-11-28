@@ -68,7 +68,7 @@ export function SavingsPanel({
           <span className="text-sm tabular-nums">{progress}%</span>
         </div>
         {deadline ? <p className="mt-2 text-sm text-muted">Срок: {deadline}</p> : null}
-        {progress >= 100 ? <p className="mt-1 text-center text-sm text-green-300">Полностью накоплено</p> : null}
+        {progress >= 100 ? <p className="savings-done">Полностью накоплено</p> : null}
         <button type="button" className="save mt-3" onClick={() => setAdding(true)}>
           Добавить сумму
         </button>

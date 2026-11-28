@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 /**
  * Closes a floating layer when the user presses outside of it.
@@ -7,19 +7,20 @@ import { useEffect, useRef } from "react";
 export function useDismissable(
   open: boolean,
   onClose: () => void,
-  opts?: { disable?: boolean },
+  trigger?: RefObject<HTMLElement | null>,
 ) {
   const ref = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
   useEffect(() => {
-    if (!open || opts?.disable) return;
+    if (!open) return;
     const onPointer = (event: PointerEvent) => {
       const node = ref.current;
       if (!node) return;
       const target = event.target as Node | null;
       if (target && node.contains(target)) return;
+      if (target && trigger?.current?.contains(target)) return;
       onCloseRef.current();
     };
     const onKey = (event: KeyboardEvent) => {
@@ -31,7 +32,7 @@ export function useDismissable(
       document.removeEventListener("pointerdown", onPointer, true);
       document.removeEventListener("keydown", onKey, true);
     };
-  }, [open, opts?.disable]);
+  }, [open, trigger]);
 
   return ref;
 }

@@ -7,21 +7,32 @@ import { useEffect } from "react";
 export function useAppHeight() {
   useEffect(() => {
     const root = document.documentElement;
+    let frame = 0;
     const apply = () => {
-      const height = window.visualViewport?.height ?? window.innerHeight;
+      const vv = window.visualViewport;
+      const height = vv?.height ?? window.innerHeight;
+      const offsetTop = vv?.offsetTop ?? 0;
       root.style.setProperty("--app-height", `${Math.round(height)}px`);
+      root.style.setProperty("--vv-top", `${Math.round(offsetTop)}px`);
+    };
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(apply);
     };
     apply();
+    const kick = window.setTimeout(apply, 280);
     const vv = window.visualViewport;
-    vv?.addEventListener("resize", apply);
-    vv?.addEventListener("scroll", apply);
-    window.addEventListener("resize", apply);
-    window.addEventListener("orientationchange", apply);
+    vv?.addEventListener("resize", schedule);
+    vv?.addEventListener("scroll", schedule);
+    window.addEventListener("resize", schedule);
+    window.addEventListener("orientationchange", schedule);
     return () => {
-      vv?.removeEventListener("resize", apply);
-      vv?.removeEventListener("scroll", apply);
-      window.removeEventListener("resize", apply);
-      window.removeEventListener("orientationchange", apply);
+      cancelAnimationFrame(frame);
+      window.clearTimeout(kick);
+      vv?.removeEventListener("resize", schedule);
+      vv?.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("orientationchange", schedule);
     };
   }, []);
 }

@@ -1,26 +1,18 @@
 import { useState } from "react";
-import {
-  ChevronRight,
-  Download,
-  GripVertical,
-  Monitor,
-  Moon,
-  RefreshCw,
-  Smartphone,
-  Sun,
-  Upload,
-} from "lucide-react";
-import { AppDock } from "@/components/shell/app-dock";
+import { Bookmark, ChevronRight, Download, Monitor, Moon, RefreshCw, Rows3, Smartphone, Sun, Upload } from "lucide-react";
+import { toast } from "sonner";
+import { HomeScreenSettings, TabOrderSettings } from "@/components/shell/nav-settings";
 import { CURRENCIES, currencyLabel, type Currency } from "@/lib/money";
-import type { DockTab, ThemeMode } from "@/types/wishlist";
+import { tabLabel, withDockOrder, withHomeScreen, withTabVisibility } from "@/lib/navigation";
+import type { AppSettings, DockTab, ThemeMode } from "@/types/wishlist";
 
 export function CabinetScreen({
   theme,
   currency,
-  dockOrder,
+  settings,
   onTheme,
   onCurrency,
-  onDockOrder,
+  onSettings,
   onExport,
   onImport,
   onInstall,
@@ -28,16 +20,58 @@ export function CabinetScreen({
 }: {
   theme: ThemeMode;
   currency: Currency;
-  dockOrder: DockTab[];
+  settings: AppSettings;
   onTheme: (mode: ThemeMode) => void;
   onCurrency: (currency: Currency) => void;
-  onDockOrder: (order: DockTab[]) => void;
+  onSettings: (patch: Partial<AppSettings>) => void;
   onExport: () => void;
   onImport: () => void;
   onInstall: () => void;
   onCheckUpdate: () => void;
 }) {
-  const [dockEdit, setDockEdit] = useState(false);
+  const [panel, setPanel] = useState<"home" | "order" | null>(null);
+
+  function chooseHome(home: DockTab) {
+    const result = withHomeScreen(settings, home);
+    onSettings({ homeScreen: result.settings.homeScreen, dockHidden: result.settings.dockHidden });
+    if (result.revealed) toast(`«${tabLabel(home)}» снова в панели и откроется при запуске`);
+  }
+
+  function changeOrder(order: DockTab[]) {
+    const next = withDockOrder(settings, order);
+    onSettings({ dockOrder: next.dockOrder });
+  }
+
+  function changeVisibility(tab: DockTab, visible: boolean) {
+    const result = withTabVisibility(settings, tab, visible);
+    if (result.blocked === "home") {
+      toast("Это главный экран. Сначала назначьте другой раздел");
+      return;
+    }
+    if (result.blocked === "last") {
+      toast("Нужна хотя бы одна вкладка в панели");
+      return;
+    }
+    onSettings({ dockHidden: result.settings.dockHidden });
+    if (!visible && tab === "cabinet") {
+      toast("Кабинет скрыт. Удерживайте нижнюю панель, чтобы открыть настройки");
+    }
+  }
+
+  if (panel === "home") {
+    return <HomeScreenSettings settings={settings} onChange={chooseHome} onClose={() => setPanel(null)} />;
+  }
+
+  if (panel === "order") {
+    return (
+      <TabOrderSettings
+        settings={settings}
+        onOrder={changeOrder}
+        onVisibility={changeVisibility}
+        onClose={() => setPanel(null)}
+      />
+    );
+  }
 
   return (
     <section className="cabinet">
@@ -52,6 +86,26 @@ export function CabinetScreen({
 
       <div className="settings-list">
         <div className="row glass appearance">
+          <span className="section-label">Навигация</span>
+          <button type="button" className="row glass nav-entry" onClick={() => setPanel("home")}>
+            <Bookmark className="size-5" />
+            <span className="grow">
+              <strong>Главный экран</strong>
+              <small>Сейчас: {tabLabel(settings.homeScreen)}</small>
+            </span>
+            <ChevronRight className="size-4 shrink-0" />
+          </button>
+          <button type="button" className="row glass nav-entry" onClick={() => setPanel("order")}>
+            <Rows3 className="size-5" />
+            <span className="grow">
+              <strong>Порядок вкладок</strong>
+              <small>Состав и порядок нижней панели</small>
+            </span>
+            <ChevronRight className="size-4 shrink-0" />
+          </button>
+        </div>
+
+        <div className="row glass appearance">
           <span className="section-label">Внешний вид</span>
           <div className="segment wide">
             <button type="button" aria-pressed={theme === "light"} onClick={() => onTheme("light")}>
@@ -64,36 +118,6 @@ export function CabinetScreen({
               <Monitor className="size-4" /> Система
             </button>
           </div>
-        </div>
-
-        <div className="row glass appearance">
-          <span className="section-label">Персонализация</span>
-          <button
-            type="button"
-            className="row glass"
-            style={{ margin: 0, padding: "0.65rem 0.75rem" }}
-            aria-pressed={dockEdit}
-            onClick={() => setDockEdit((open) => !open)}
-          >
-            <GripVertical className="size-5" />
-            <span className="grow">
-              <strong>Порядок вкладок</strong>
-              <small>{dockEdit ? "Перетащите иконки, «Хотелки» всегда первые" : "Настроить нижнюю навигацию"}</small>
-            </span>
-            <ChevronRight className={`size-4 shrink-0 transition ${dockEdit ? "rotate-90" : ""}`} />
-          </button>
-          {dockEdit ? (
-            <div className="dock-preview">
-              <AppDock
-                screen="cabinet"
-                order={dockOrder}
-                editing
-                onNavigate={() => undefined}
-                onReorder={onDockOrder}
-              />
-              <p className="dock-preview__hint">Удерживайте и перетащите вкладку. «Хотелки» закреплена слева.</p>
-            </div>
-          ) : null}
         </div>
 
         <label className="row glass">
@@ -116,14 +140,14 @@ export function CabinetScreen({
 
         <div className="row glass appearance">
           <span className="section-label">Данные</span>
-          <button type="button" className="row glass" style={{ margin: 0 }} onClick={onExport}>
+          <button type="button" className="row glass nav-entry" onClick={onExport}>
             <Download className="size-5" />
             <span className="grow">
               <strong>Скачать данные</strong>
               <small>Резервная копия на устройство</small>
             </span>
           </button>
-          <button type="button" className="row glass" style={{ margin: 0 }} onClick={onImport}>
+          <button type="button" className="row glass nav-entry" onClick={onImport}>
             <Upload className="size-5" />
             <span className="grow">
               <strong>Загрузить данные</strong>

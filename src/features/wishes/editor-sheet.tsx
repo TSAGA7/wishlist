@@ -61,7 +61,7 @@ function EditorSheetBody({
   onSave: (draft: WishDraft) => void;
 }) {
   const dismiss = useOverlayClose() ?? onClose;
-  const [form, setForm] = useState(draft);
+  const [form, setForm] = useState(() => cleanDraft(draft));
   const [parsing, setParsing] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -173,7 +173,7 @@ function EditorSheetBody({
                 <span className="relative min-w-0 flex-1">
                   <Link2 className="pointer-events-none absolute top-3.5 left-3 size-4 opacity-60" />
                   <input
-                    value={form.url}
+                    value={textOr(form.url, "")}
                     inputMode="url"
                     autoCapitalize="none"
                     autoCorrect="off"
@@ -207,7 +207,7 @@ function EditorSheetBody({
             <span className="label">Название</span>
             <input
               required
-              value={form.title}
+              value={textOr(form.title, "")}
               maxLength={180}
               onChange={(event) => setForm({ ...form, title: event.target.value })}
               className="field"
@@ -253,7 +253,7 @@ function EditorSheetBody({
               <span className="label">{form.kind === "trip" ? "Бюджет" : "Цена"}</span>
               <input
                 inputMode="decimal"
-                value={form.price}
+                value={textOr(form.price, "")}
                 placeholder="0"
                 onChange={(event) => setForm({ ...form, price: event.target.value, priceAuto: false })}
                 className="field tabular-nums"
@@ -292,48 +292,50 @@ function EditorSheetBody({
             </div>
           </label>
 
-          <button
-            type="button"
-            className="switch"
-            role="switch"
-            aria-checked={form.savingsEnabled}
-            onClick={() =>
-              setForm((current) => ({
-                ...current,
-                savingsEnabled: !current.savingsEnabled,
-                savedAmount: current.savedAmount || "0",
-              }))
-            }
-          >
-            <span>Копить</span>
-            <span className="knob-track" data-on={form.savingsEnabled}>
-              <span className="knob" />
-            </span>
-          </button>
+          <div className={`savings-line ${form.savingsEnabled ? "is-open" : ""}`}>
+            <button
+              type="button"
+              className="switch switch-compact"
+              role="switch"
+              aria-checked={form.savingsEnabled}
+              onClick={() =>
+                setForm((current) => ({
+                  ...current,
+                  savingsEnabled: !current.savingsEnabled,
+                  savedAmount: textOr(current.savedAmount, "0"),
+                }))
+              }
+            >
+              <span>Копить</span>
+              <span className="knob-track" data-on={form.savingsEnabled}>
+                <span className="knob" />
+              </span>
+            </button>
 
-          {form.savingsEnabled ? (
-            <div className="savings-fields">
-              <label>
-                <span className="label">Уже накоплено</span>
-                <input
-                  inputMode="decimal"
-                  className="field tabular-nums"
-                  value={form.savedAmount}
-                  placeholder="0"
-                  onChange={(e) => setForm({ ...form, savedAmount: e.target.value })}
-                />
-              </label>
-              <label>
-                <span className="label">Срок</span>
-                <input
-                  type="date"
-                  className="field"
-                  value={form.deadline}
-                  onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-                />
-              </label>
-            </div>
-          ) : null}
+            {form.savingsEnabled ? (
+              <>
+                <label>
+                  <span className="label">Уже накоплено</span>
+                  <input
+                    inputMode="decimal"
+                    className="field tabular-nums"
+                    value={textOr(form.savedAmount, "")}
+                    placeholder="0"
+                    onChange={(e) => setForm({ ...form, savedAmount: e.target.value })}
+                  />
+                </label>
+                <label>
+                  <span className="label">Срок</span>
+                  <input
+                    type="date"
+                    className="field field-date"
+                    value={dateOrEmpty(form.deadline)}
+                    onChange={(e) => setForm({ ...form, deadline: e.target.value })}
+                  />
+                </label>
+              </>
+            ) : null}
+          </div>
 
           {form.kind === "trip" ? (
             <>
@@ -362,8 +364,8 @@ function EditorSheetBody({
                   <span className="label">Начало</span>
                   <input
                     type="date"
-                    className="field"
-                    value={form.startDate}
+                    className="field field-date"
+                    value={dateOrEmpty(form.startDate)}
                     onChange={(e) => setForm({ ...form, startDate: e.target.value })}
                   />
                 </label>
@@ -371,8 +373,8 @@ function EditorSheetBody({
                   <span className="label">Конец</span>
                   <input
                     type="date"
-                    className="field"
-                    value={form.endDate}
+                    className="field field-date"
+                    value={dateOrEmpty(form.endDate)}
                     onChange={(e) => setForm({ ...form, endDate: e.target.value })}
                   />
                 </label>
@@ -385,7 +387,7 @@ function EditorSheetBody({
               <span className="label">Адрес / локация</span>
               <input
                 className="field"
-                value={form.location}
+                value={textOr(form.location, "")}
                 placeholder="Город, район или адрес"
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
               />
@@ -397,8 +399,8 @@ function EditorSheetBody({
               <span className="label">Дата события</span>
               <input
                 type="date"
-                className="field"
-                value={form.eventDate}
+                className="field field-date"
+                value={dateOrEmpty(form.eventDate)}
                 onChange={(e) => setForm({ ...form, eventDate: e.target.value })}
               />
             </label>
@@ -423,7 +425,7 @@ function EditorSheetBody({
           <label className="block">
             <span className="label">Заметка</span>
             <textarea
-              value={form.note}
+              value={textOr(form.note, "")}
               maxLength={500}
               rows={3}
               placeholder="Для себя"
@@ -442,4 +444,35 @@ function EditorSheetBody({
       </div>
     </div>
   );
+}
+
+function textOr(value: string | null | undefined, fallback: string): string {
+  if (value == null) return fallback;
+  const text = String(value);
+  if (text === "undefined" || text === "null") return fallback;
+  return text;
+}
+
+function dateOrEmpty(value: string | null | undefined): string {
+  const text = textOr(value, "");
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
+}
+
+function cleanDraft(draft: WishDraft): WishDraft {
+  return {
+    ...draft,
+    url: textOr(draft.url, ""),
+    title: textOr(draft.title, ""),
+    price: textOr(draft.price, ""),
+    note: textOr(draft.note, ""),
+    savedAmount: textOr(draft.savedAmount, "0"),
+    targetAmount: textOr(draft.targetAmount, ""),
+    deadline: dateOrEmpty(draft.deadline),
+    countries: textOr(draft.countries, ""),
+    cities: textOr(draft.cities, ""),
+    startDate: dateOrEmpty(draft.startDate),
+    endDate: dateOrEmpty(draft.endDate),
+    location: textOr(draft.location, ""),
+    eventDate: dateOrEmpty(draft.eventDate),
+  };
 }

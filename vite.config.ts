@@ -50,7 +50,7 @@ async function fill(cache, file) {
 
 self.addEventListener("install", (event) => {
   // Wait for «Обновить»: the open version keeps its cache until the user confirms.
-  event.waitUntil(caches.open(CACHE).then((cache) => Promise.all(FILES.map((file) => fill(cache, file))));
+  event.waitUntil(caches.open(CACHE).then((cache) => Promise.all(FILES.map((file) => fill(cache, file)))));
 });
 
 self.addEventListener("message", (event) => {

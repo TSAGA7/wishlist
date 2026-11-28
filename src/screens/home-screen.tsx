@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Bell, Bookmark, CheckSquare, Plus, Search, X } from "lucide-react";
 import { useDismissable } from "@/hooks/use-dismissable";
 import { WishReorder } from "@/features/wishes/wish-card";
@@ -59,7 +59,8 @@ export function HomeScreen({
   const [searchOpen, setSearchOpen] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(name);
-  const bellRef = useDismissable(bell, () => setBell(false));
+  const bellTrigger = useRef<HTMLButtonElement>(null);
+  const bellRef = useDismissable(bell, () => setBell(false), bellTrigger);
   const needle = query.trim().toLowerCase();
 
   const active = wishes.filter((w) => !w.archived);
@@ -109,7 +110,7 @@ export function HomeScreen({
               <strong>Wishlist</strong>
             </div>
             <div className="relative">
-              <button type="button" className="icon-btn" aria-label="Уведомления" onClick={() => setBell((open) => !open)}>
+              <button ref={bellTrigger} type="button" className="icon-btn" aria-label="Уведомления" aria-expanded={bell} onClick={() => setBell((open) => !open)}>
                 <Bell className="size-5" />
               </button>
               {bell ? (

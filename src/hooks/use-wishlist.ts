@@ -18,7 +18,8 @@ import {
   saveProfile,
   saveSettings,
 } from "@/database/wishlist-db";
-import type { AppSettings, Collection, DockTab, ThemeMode, Wish, WishDraft } from "@/types/wishlist";
+import { normalizeSettings } from "@/lib/navigation";
+import type { AppSettings, Collection, ThemeMode, Wish, WishDraft } from "@/types/wishlist";
 import { DEFAULT_DOCK_ORDER } from "@/types/wishlist";
 
 export function useWishlist() {
@@ -28,10 +29,9 @@ export function useWishlist() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [ready, setReady] = useState(false);
   const [mapReady, setMapReady] = useState(false);
-  const [settings, setSettings] = useState<AppSettings>({
-    theme: "system",
-    dockOrder: [...DEFAULT_DOCK_ORDER],
-  });
+  const [settings, setSettings] = useState<AppSettings>(() =>
+    normalizeSettings({ theme: "system", dockOrder: [...DEFAULT_DOCK_ORDER] }),
+  );
 
   useEffect(() => {
     let alive = true;
@@ -88,13 +88,13 @@ export function useWishlist() {
     }
   }, []);
 
-  const changeDockOrder = useCallback(async (dockOrder: DockTab[]) => {
-    setSettings((current) => ({ ...current, dockOrder }));
+  const updateSettings = useCallback(async (patch: Partial<AppSettings>) => {
+    setSettings((current) => normalizeSettings({ ...current, ...patch }));
     try {
-      const next = await saveSettings({ dockOrder });
+      const next = await saveSettings(patch);
       setSettings(next);
     } catch {
-      toast.error("Порядок вкладок не сохранился");
+      toast.error("Настройки не сохранились");
     }
   }, []);
 
@@ -446,7 +446,7 @@ export function useWishlist() {
     commitName,
     changeCurrency,
     changeTheme,
-    changeDockOrder,
+    updateSettings,
     saveDraft,
     upsertWish,
     persistMapPositions,

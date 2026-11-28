@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, CheckCircle2, CircleDashed, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Check, Circle, Trash2 } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { kindLabel } from "@/lib/kinds";
 import { Thumb } from "@/features/wishes/thumb";
@@ -60,11 +60,11 @@ export function ArchiveScreen({
                     <span className={`archive-status ${wish.completed ? "is-done" : "is-open"}`}>
                       {wish.completed ? (
                         <>
-                          <CheckCircle2 className="size-3.5" /> Исполнено
+                          <Check className="size-3.5" /> Исполнено
                         </>
                       ) : (
                         <>
-                          <CircleDashed className="size-3.5" /> Не исполнено
+                          <Circle className="size-3.5" /> Не исполнено
                         </>
                       )}
                     </span>
@@ -73,10 +73,11 @@ export function ArchiveScreen({
                 <button
                   type="button"
                   className="icon-btn"
-                  aria-label={wish.completed ? "Отметить неисполненным" : "Отметить исполненным"}
+                  aria-label={wish.completed ? "Исполнено" : "Не исполнено"}
+                  aria-pressed={wish.completed}
                   onClick={() => onToggleCompleted(wish)}
                 >
-                  {wish.completed ? <CircleDashed className="size-5" /> : <CheckCircle2 className="size-5" />}
+                  {wish.completed ? <Check className="size-5" /> : <Circle className="size-5" />}
                 </button>
                 <button type="button" className="icon-btn" aria-label="Вернуть" onClick={() => onRestore(wish)}>
                   <ArchiveRestore className="size-5" />
