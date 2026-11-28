@@ -11,7 +11,6 @@ import { AddChoiceSheet } from "@/features/wishes/add-choice-sheet";
 import { CompletedModal } from "@/features/wishes/completed-modal";
 import { EditorSheet } from "@/features/wishes/editor-sheet";
 import { ViewSheet } from "@/features/wishes/view-sheet";
-import { useAppHeight } from "@/hooks/use-app-height";
 import { useWishlist } from "@/hooks/use-wishlist";
 import { checkForUpdate, startUpdates } from "@/lib/app-update";
 import { draftFromWish, emptyWishDraft } from "@/lib/draft";
@@ -32,7 +31,6 @@ type Overlay =
   | null;
 
 export function WishlistApp() {
-  useAppHeight();
   const store = useWishlist();
   const [screen, setScreen] = useState<Screen>("home");
   const bootedScreen = useRef(false);

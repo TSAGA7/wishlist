@@ -52,9 +52,11 @@
   --hero-c: #6d82b4;
   --bar: rgba(255, 255, 255, 0.85);
   --blur: 22px;
-  --dock-offset: max(0.45rem, env(safe-area-inset-bottom, 0px));
-  --dock-height: 4.35rem;
-  --dock-clearance: calc(var(--dock-height) + var(--dock-offset) + 1.35rem);
+  /* Same idea as My World .softbar: a small lift plus the home-indicator inset, never a second viewport shrink. */
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --dock-offset: calc(10px + var(--safe-b));
+  --dock-height: 4.15rem;
+  --dock-clearance: calc(var(--dock-height) + var(--dock-offset) + 12px);
   --control-h: 3rem;
   --radius-sm: 0.9rem;
   --radius-md: 1.05rem;
@@ -122,20 +124,19 @@ html.light .stage {
 }
 
 @layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    height: 100%;
-    height: 100svh;
-    height: 100dvh;
-    overflow: hidden;
   }
 
   body,
   #root {
-    height: 100%;
-    height: 100svh;
-    height: 100dvh;
     overflow: hidden;
   }
 
@@ -185,12 +186,7 @@ html.light .stage {
 
 .shell {
   position: fixed;
-  top: var(--vv-top, 0px);
-  right: 0;
-  left: 0;
-  width: 100%;
-  height: 100svh;
-  height: var(--app-height, 100dvh);
+  inset: 0;
   overflow: hidden;
 }
 
@@ -442,8 +438,8 @@ html.light .badge {
 }
 
 .dock {
-  position: absolute;
-  z-index: 20;
+  position: fixed;
+  z-index: 30;
   right: 0.5rem;
   bottom: var(--dock-offset);
   left: 0.5rem;
@@ -497,8 +493,8 @@ html.light .dock button[aria-current="page"] {
 }
 
 .fab {
-  position: absolute;
-  z-index: 21;
+  position: fixed;
+  z-index: 31;
   right: max(1.1rem, calc(50% - 15.5rem));
   bottom: calc(var(--dock-height) + var(--dock-offset) + 0.35rem);
   display: grid;
@@ -944,7 +940,7 @@ textarea.field {
 @media (min-width: 960px) {
   .shell {
     position: relative;
-    top: auto;
+    inset: auto;
     display: grid;
     grid-template-columns: 272px minmax(0, 1fr);
     gap: 0.75rem;
@@ -1504,7 +1500,8 @@ html.light .chip {
 }
 
 .wish-screen__foot {
-  padding: 0.7rem 1rem calc(0.85rem + env(safe-area-inset-bottom));
+  flex: none;
+  padding: 0.65rem 1rem calc(10px + env(safe-area-inset-bottom, 0px));
 }
 
 .overlay-frame--center .overlay-backdrop {
@@ -2461,20 +2458,6 @@ html.light .side button[aria-current="page"] {
 
 .nav-entry {
   margin: 0;
-}
-
-@media (max-width: 959px) {
-  html,
-  body,
-  #root {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100svh;
-    height: var(--app-height, 100dvh);
-    overflow: hidden;
-    overscroll-behavior: none;
-  }
 }
 
 @media (max-width: 390px) {
