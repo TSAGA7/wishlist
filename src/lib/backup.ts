@@ -3,13 +3,39 @@ import { isWishKind } from "@/lib/kinds";
 import { normalizeSettings } from "@/lib/navigation";
 import type { AppSettings, Collection, DockTab, Priority, SavingOperation, ThemeMode, Wish, WishKind } from "@/types/wishlist";
 
+export const MAX_BACKUP_PHOTO_BYTES = 8 * 1024 * 1024;
+export const MAX_BACKUP_DATA_URL_CHARS = 12_000_000;
+
+export interface BackupPhoto {
+  id: string;
+  mime: string;
+  dataUrl: string;
+}
+
 export interface BackupFile {
-  version: 3;
+  version: 4;
   exportedAt: string;
   profile: { name: string; currency?: Currency };
   settings?: AppSettings;
   wishes: Wish[];
   collections: Collection[];
+  photos: BackupPhoto[];
+}
+
+export interface ParsedBackupPhoto {
+  id: string;
+  mime: string;
+  blob: Blob;
+}
+
+export interface ParsedBackup {
+  name: string | null;
+  currency?: Currency;
+  wishes: Wish[];
+  collections: Collection[];
+  settings?: AppSettings;
+  photos: ParsedBackupPhoto[];
+  photoProblems: string[];
 }
 
 function safeHttp(value: unknown): string {
@@ -138,9 +164,108 @@ function coerceSettings(raw: unknown): AppSettings | undefined {
   });
 }
 
-export function parseBackup(
-  raw: unknown,
-): { name: string | null; currency?: Currency; wishes: Wish[]; collections: Collection[]; settings?: AppSettings } | null {
+export function localPhotoIds(wishes: Wish[], collections: Collection[]): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const push = (ref: string | null | undefined) => {
+    if (!ref?.startsWith("idb:")) return;
+    const id = ref.slice(4).trim();
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+  };
+  for (const wish of wishes) push(wish.image);
+  for (const collection of collections) push(collection.coverImage);
+  return ids;
+}
+
+export function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string" && reader.result.startsWith("data:image/")) resolve(reader.result);
+      else reject(new Error("Unread photo"));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Unread photo"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function dataUrlToBlob(dataUrl: string): Blob | null {
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0) return null;
+  const header = dataUrl.slice(0, comma);
+  const payload = dataUrl.slice(comma + 1);
+  const mimeMatch = /^data:([^;,]+)/.exec(header);
+  const mime = mimeMatch?.[1] || "image/jpeg";
+  if (!mime.startsWith("image/")) return null;
+  try {
+    if (/;base64/i.test(header)) {
+      const binary = atob(payload.replace(/\s/g, ""));
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      return new Blob([bytes], { type: mime });
+    }
+    return new Blob([decodeURIComponent(payload)], { type: mime });
+  } catch {
+    return null;
+  }
+}
+
+function readBackupPhotos(raw: unknown, problems: string[]): ParsedBackupPhoto[] {
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) {
+    problems.push("Список фото в файле повреждён");
+    return [];
+  }
+  const photos: ParsedBackupPhoto[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!item || typeof item !== "object") {
+      problems.push("Одно фото в файле не читается");
+      continue;
+    }
+    const row = item as Record<string, unknown>;
+    const id = typeof row.id === "string" ? row.id.trim() : "";
+    const dataUrl = typeof row.dataUrl === "string" ? row.dataUrl.trim() : "";
+    if (!id || !dataUrl.startsWith("data:image/")) {
+      problems.push("Одно фото в файле не читается");
+      continue;
+    }
+    if (seen.has(id)) continue;
+    if (dataUrl.length > MAX_BACKUP_DATA_URL_CHARS) {
+      problems.push("Одно фото слишком большое и пропущено");
+      continue;
+    }
+    const blob = dataUrlToBlob(dataUrl);
+    if (!blob) {
+      problems.push("Одно фото в файле не читается");
+      continue;
+    }
+    if (blob.size > MAX_BACKUP_PHOTO_BYTES) {
+      problems.push("Одно фото слишком большое и пропущено");
+      continue;
+    }
+    const mime = typeof row.mime === "string" && row.mime.startsWith("image/") ? row.mime : blob.type || "image/jpeg";
+    seen.add(id);
+    photos.push({ id, mime, blob });
+  }
+  return photos;
+}
+
+function danglingPhotoCount(wishes: Wish[], collections: Collection[], photos: ParsedBackupPhoto[]): number {
+  const ids = new Set(photos.map((photo) => photo.id));
+  let missing = 0;
+  for (const wish of wishes) {
+    if (wish.image?.startsWith("idb:") && !ids.has(wish.image.slice(4))) missing += 1;
+  }
+  for (const collection of collections) {
+    if (collection.coverImage?.startsWith("idb:") && !ids.has(collection.coverImage.slice(4))) missing += 1;
+  }
+  return missing;
+}
+
+export function parseBackup(raw: unknown): ParsedBackup | null {
   const source = Array.isArray(raw) ? { wishes: raw } : raw;
   if (!source || typeof source !== "object") return null;
   const record = source as Record<string, unknown>;
@@ -168,22 +293,33 @@ export function parseBackup(
       if (col) collections.push(col);
     });
   }
-  return { name, currency, wishes, collections, settings: coerceSettings(record.settings) };
+  const photoProblems: string[] = [];
+  const photos = readBackupPhotos(record.photos, photoProblems);
+  const dangling = danglingPhotoCount(wishes, collections, photos);
+  if (dangling > 0) {
+    photoProblems.push(
+      dangling === 1
+        ? "Для одного желания в файле нет самого фото — картинка не восстановится"
+        : `Для ${dangling} желаний в файле нет фото — картинки не восстановятся`,
+    );
+  }
+  return { name, currency, wishes, collections, settings: coerceSettings(record.settings), photos, photoProblems };
 }
 
 export function buildBackup(
   name: string,
   wishes: Wish[],
   collections: Collection[],
-  extras?: { currency?: Currency; settings?: AppSettings },
+  extras?: { currency?: Currency; settings?: AppSettings; photos?: BackupPhoto[] },
 ): BackupFile {
   return {
-    version: 3,
+    version: 4,
     exportedAt: new Date().toISOString(),
     profile: { name, currency: extras?.currency },
     settings: extras?.settings,
     wishes,
     collections,
+    photos: extras?.photos ?? [],
   };
 }
 

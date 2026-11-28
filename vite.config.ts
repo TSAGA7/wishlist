@@ -58,6 +58,7 @@ self.addEventListener("message", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
+  // Cache Storage only. Do not delete IndexedDB or touch Dexie tables.
   event.waitUntil(
     caches
       .keys()

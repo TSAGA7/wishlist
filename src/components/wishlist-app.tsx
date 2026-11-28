@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { visibleDock } from "@/lib/navigation";
 import { X } from "lucide-react";
 import { toast, Toaster } from "sonner";
@@ -15,6 +15,8 @@ import { useWishlist } from "@/hooks/use-wishlist";
 import { checkForUpdate, startUpdates } from "@/lib/app-update";
 import { draftFromWish, emptyWishDraft } from "@/lib/draft";
 import { wishesWord } from "@/lib/money";
+import { isStandaloneApp, STANDALONE_STORAGE_NOTICE } from "@/lib/standalone";
+import type { ParsedBackupPhoto } from "@/lib/backup";
 import { ArchiveScreen } from "@/screens/archive-screen";
 import { CabinetScreen } from "@/screens/cabinet-screen";
 import { HomeFab, HomeScreen } from "@/screens/home-screen";
@@ -24,7 +26,17 @@ type Overlay =
   | { kind: "edit"; draft: WishDraft }
   | { kind: "view"; wish: Wish }
   | { kind: "install" }
-  | { kind: "import"; name: string | null; wishes: Wish[]; collections: Collection[]; currency?: Wish["currency"]; settings?: import("@/types/wishlist").AppSettings }
+  | {
+      kind: "import";
+      name: string | null;
+      wishes: Wish[];
+      collections: Collection[];
+      currency?: Wish["currency"];
+      settings?: import("@/types/wishlist").AppSettings;
+      photos: ParsedBackupPhoto[];
+      photoProblems: string[];
+    }
+  | { kind: "pwa-storage" }
   | { kind: "add-choice" }
   | { kind: "completed"; wishes: Wish[] }
   | { kind: "confirm-delete"; wishes: Wish[] }
@@ -46,6 +58,21 @@ export function WishlistApp() {
   useEffect(() => {
     if (import.meta.env.PROD) startUpdates();
   }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("map-mode", screen === "map" && !store.storageError);
+  }, [screen, store.storageError]);
+
+  useEffect(() => {
+    if (!store.ready || store.storageError || overlay) return;
+    if (!isStandaloneApp()) return;
+    try {
+      if (localStorage.getItem("wishlist-standalone-storage-notice") === "1") return;
+    } catch {
+      return;
+    }
+    setOverlay({ kind: "pwa-storage" });
+  }, [store.ready, store.storageError, overlay]);
 
   useEffect(() => {
     if (!store.ready || bootedScreen.current) return;
@@ -85,6 +112,8 @@ export function WishlistApp() {
         collections: parsed.collections,
         currency: parsed.currency,
         settings: parsed.settings,
+        photos: parsed.photos,
+        photoProblems: parsed.photoProblems,
       });
     }
   }
@@ -126,18 +155,27 @@ export function WishlistApp() {
 
   return (
     <div className={`shell ${mapMode ? "shell-map" : ""} ${overlayOpen ? "shell-locked" : ""}`}>
-      <SideNav
-        screen={screen}
-        settings={store.settings}
-        counts={{
-          wishes: store.wishes.filter((w) => !w.archived).length,
-          archive: store.archived.length,
-          collections: store.collections.length,
-        }}
-        onNavigate={navigate}
-      />
+      {store.storageError ? (
+        <StorageErrorScreen
+          message={store.storageError}
+          retrying={store.storageRetrying}
+          onRetry={() => void store.retryLoad()}
+          onImport={() => fileRef.current?.click()}
+        />
+      ) : (
+        <SideNav
+          screen={screen}
+          settings={store.settings}
+          counts={{
+            wishes: store.wishes.filter((w) => !w.archived).length,
+            archive: store.archived.length,
+            collections: store.collections.length,
+          }}
+          onNavigate={navigate}
+        />
+      )}
 
-      {mapMode ? (
+      {store.storageError ? null : mapMode ? (
         <div className="map-pane">
           <CosmicMap
             wishes={store.wishes}
@@ -154,6 +192,7 @@ export function WishlistApp() {
           {screen === "home" ? (
             <HomeScreen
               name={store.name}
+              ready={store.ready}
               wishes={store.wishes}
               query={query}
               filter={filter}
@@ -220,10 +259,13 @@ export function WishlistApp() {
               onTheme={applyTheme}
               onCurrency={(value) => void store.changeCurrency(value)}
               onSettings={(patch) => void store.updateSettings(patch)}
-              onExport={store.exportJson}
+              onExport={() => void store.exportJson()}
               onImport={() => fileRef.current?.click()}
               onInstall={() => setOverlay({ kind: "install" })}
               onCheckUpdate={() => void handleCheckUpdate()}
+              exporting={store.exporting}
+              lastExportAt={store.lastExportAt}
+              persistence={store.persistence}
             />
           ) : null}
 
@@ -242,14 +284,16 @@ export function WishlistApp() {
         </div>
       )}
 
-      <AppDock
-        screen={screen}
-        settings={store.settings}
-        onNavigate={navigate}
-        onRecoverCabinet={
-          visibleDock(store.settings).includes("cabinet") ? undefined : () => navigate("cabinet")
-        }
-      />
+      {store.storageError ? null : (
+        <AppDock
+          screen={screen}
+          settings={store.settings}
+          onNavigate={navigate}
+          onRecoverCabinet={
+            visibleDock(store.settings).includes("cabinet") ? undefined : () => navigate("cabinet")
+          }
+        />
+      )}
 
       {overlay?.kind === "add-choice" ? (
         <AddChoiceSheet
@@ -306,15 +350,42 @@ export function WishlistApp() {
 
       {overlay?.kind === "install" ? <InstallSheet onClose={() => setOverlay(null)} /> : null}
 
+      {overlay?.kind === "pwa-storage" ? (
+        <InstallSheet
+          title="Данные остаются на этом устройстве"
+          onClose={() => {
+            try {
+              localStorage.setItem("wishlist-standalone-storage-notice", "1");
+            } catch {
+              /* private mode */
+            }
+            setOverlay(null);
+          }}
+        >
+          <p className="text-muted">{STANDALONE_STORAGE_NOTICE}</p>
+          <p className="mt-3 text-muted">
+            Если удалить приложение с экрана «Домой» или очистить его данные, локальный список пропадёт. Перед этим
+            скачайте резервную копию в кабинете.
+          </p>
+        </InstallSheet>
+      ) : null}
+
       {overlay?.kind === "import" ? (
         <ConfirmSheet
           title="Заменить список?"
-          body={`В файле ${overlay.wishes.length} ${wishesWord(overlay.wishes.length)} и ${overlay.collections.length} подборок. Текущие данные на этом устройстве будут заменены.`}
+          body={importSummary(overlay)}
           confirmLabel="Заменить"
           onClose={() => setOverlay(null)}
           onConfirm={() => {
             void store
-              .confirmImport(overlay.name, overlay.wishes, overlay.collections, overlay.settings, overlay.currency)
+              .confirmImport(
+                overlay.name,
+                overlay.wishes,
+                overlay.collections,
+                overlay.settings,
+                overlay.currency,
+                overlay.photos,
+              )
               .then((ok) => {
                 if (ok) setOverlay(null);
               });
@@ -372,31 +443,93 @@ export function WishlistApp() {
   );
 }
 
-function InstallSheet({ onClose }: { onClose: () => void }) {
+function InstallSheet({
+  onClose,
+  title = "Добавить на экран «Домой»?",
+  children,
+}: {
+  onClose: () => void;
+  title?: string;
+  children?: ReactNode;
+}) {
   return (
     <div className="sheet-root">
       <button type="button" className="backdrop" aria-label="Закрыть" onClick={onClose} />
       <div className="sheet rise" role="dialog" aria-modal="true">
         <div className="mb-2 flex items-start justify-between gap-3">
-          <h2 className="text-xl font-semibold">Добавить на экран «Домой»?</h2>
+          <h2 className="text-xl font-semibold">{title}</h2>
           <button type="button" className="icon-btn" aria-label="Закрыть" onClick={onClose}>
             <X className="size-5" />
           </button>
         </div>
-        <p className="text-muted">
-          Установите Wishlist как приложение на iPhone: Safari → Поделиться → На экран «Домой».
-        </p>
-        <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted">
-          <li>Откройте сайт в Safari</li>
-          <li>Нажмите «Поделиться»</li>
-          <li>Выберите «На экран „Домой“»</li>
-        </ol>
+        {children ?? (
+          <>
+            <p className="text-muted">
+              Установите Wishlist как приложение на iPhone: Safari → Поделиться → На экран «Домой».
+            </p>
+            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted">
+              <li>Откройте сайт в Safari</li>
+              <li>Нажмите «Поделиться»</li>
+              <li>Выберите «На экран „Домой“»</li>
+            </ol>
+            <p className="mt-3 text-muted">{STANDALONE_STORAGE_NOTICE}</p>
+          </>
+        )}
         <button type="button" className="save mt-4" onClick={onClose}>
           Понятно
         </button>
       </div>
     </div>
   );
+}
+
+function StorageErrorScreen({
+  message,
+  retrying,
+  onRetry,
+  onImport,
+}: {
+  message: string;
+  retrying: boolean;
+  onRetry: () => void;
+  onImport: () => void;
+}) {
+  return (
+    <section className="storage-error">
+      <h1>Не удалось открыть локальные данные</h1>
+      <p>
+        Список на этом устройстве не прочитан. Пустой экран не значит, что желания удалены — база не очищалась и новая
+        поверх неё не создавалась.
+      </p>
+      <p className="storage-error__detail">{message}</p>
+      <button type="button" className="save" onClick={onRetry} disabled={retrying}>
+        {retrying ? "Открываем снова…" : "Повторить"}
+      </button>
+      <button type="button" className="cancel" onClick={onImport} disabled={retrying}>
+        Восстановить из резервной копии
+      </button>
+    </section>
+  );
+}
+
+function collectionsWord(count: number): string {
+  const abs = Math.abs(count) % 100;
+  const last = abs % 10;
+  if (abs > 10 && abs < 20) return "подборок";
+  if (last === 1) return "подборка";
+  if (last >= 2 && last <= 4) return "подборки";
+  return "подборок";
+}
+
+function importSummary(overlay: {
+  wishes: Wish[];
+  collections: Collection[];
+  photos: ParsedBackupPhoto[];
+  photoProblems: string[];
+}): string {
+  const photos = overlay.photos.length ? `, фото: ${overlay.photos.length}` : ", без файлов фото";
+  const problems = overlay.photoProblems.length ? ` ${overlay.photoProblems.join(" ")}` : "";
+  return `В файле ${overlay.wishes.length} ${wishesWord(overlay.wishes.length)} и ${overlay.collections.length} ${collectionsWord(overlay.collections.length)}${photos}.${problems} Текущие желания, подборки и локальные фото на этом устройстве будут заменены только после подтверждения.`;
 }
 
 function ConfirmSheet({

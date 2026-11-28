@@ -1,22 +1,39 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { backupFileName, buildBackup, parseBackup } from "@/lib/backup";
+import {
+  MAX_BACKUP_DATA_URL_CHARS,
+  MAX_BACKUP_PHOTO_BYTES,
+  backupFileName,
+  blobToDataUrl,
+  buildBackup,
+  localPhotoIds,
+  parseBackup,
+  type BackupPhoto,
+  type ParsedBackupPhoto,
+} from "@/lib/backup";
 import { canonicalUrl } from "@/lib/draft";
 import { parseAmount, type Currency } from "@/lib/money";
 import { wishesWord } from "@/lib/money";
 import {
   DEFAULT_NAME,
+  diagnoseStorage,
+  formatStorageError,
+  getPhotoBlob,
   loadWishlist,
   putCollection,
   markMapSpace,
   putWish,
+  rememberBackupExport,
   removeCollection,
   removeWish,
+  reopenWishlistDatabase,
   replaceWishlist,
+  requestPersistentStorage,
   saveMapPositions,
   saveOrder,
   saveProfile,
   saveSettings,
+  type PersistentStorageStatus,
 } from "@/database/wishlist-db";
 import { normalizeSettings } from "@/lib/navigation";
 import type { AppSettings, Collection, ThemeMode, Wish, WishDraft } from "@/types/wishlist";
@@ -28,32 +45,58 @@ export function useWishlist() {
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [ready, setReady] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const [storageRetrying, setStorageRetrying] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [lastExportAt, setLastExportAt] = useState<string | null>(null);
+  const [persistence, setPersistence] = useState<PersistentStorageStatus | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const loadGeneration = useRef(0);
+  const exportLock = useRef(false);
   const [settings, setSettings] = useState<AppSettings>(() =>
     normalizeSettings({ theme: "system", dockOrder: [...DEFAULT_DOCK_ORDER] }),
   );
 
-  useEffect(() => {
-    let alive = true;
-    loadWishlist()
-      .then((data) => {
-        if (!alive) return;
-        setName(data.name);
-        setCurrency(data.currency);
-        setWishes(data.wishes);
-        setCollections(data.collections);
-        setMapReady(data.mapReady);
-        setSettings(data.settings);
-        setReady(true);
-      })
-      .catch(() => {
-        toast.error("Не удалось открыть список на устройстве");
-        setReady(true);
-      });
-    return () => {
-      alive = false;
-    };
+  const runLoad = useCallback(async (reopen: boolean) => {
+    const generation = ++loadGeneration.current;
+    const current = () => generation === loadGeneration.current;
+    if (reopen) setStorageRetrying(true);
+    try {
+      if (reopen) await reopenWishlistDatabase();
+      const data = await loadWishlist();
+      if (!current()) return;
+      setName(data.name);
+      setCurrency(data.currency);
+      setWishes(data.wishes);
+      setCollections(data.collections);
+      setMapReady(data.mapReady);
+      setSettings(data.settings);
+      setLastExportAt(data.lastExportedAt);
+      setStorageError(null);
+      setReady(true);
+      const persistent = await requestPersistentStorage();
+      if (!current()) return;
+      setPersistence(persistent);
+      try {
+        await diagnoseStorage();
+      } catch (error) {
+        console.warn("[Wishlist] storage diagnose failed", error instanceof Error ? error.name : "Error");
+      }
+    } catch (error) {
+      console.warn("[Wishlist] IndexedDB read failed", error instanceof Error ? error.name : "Error");
+      if (!current()) return;
+      setStorageError(formatStorageError(error));
+      setReady(true);
+    } finally {
+      if (current()) setStorageRetrying(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void runLoad(false);
+  }, [runLoad]);
+
+  const retryLoad = useCallback(() => runLoad(true), [runLoad]);
 
   const active = useMemo(() => wishes.filter((w) => !w.archived), [wishes]);
   const archived = useMemo(() => wishes.filter((w) => w.archived), [wishes]);
@@ -370,23 +413,87 @@ export function useWishlist() {
     [collections, wishes],
   );
 
-  const exportJson = useCallback(() => {
-    const blob = new Blob(
-      [JSON.stringify(buildBackup(name, wishes, collections, { currency, settings }), null, 2)],
-      { type: "application/json" },
-    );
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = backupFileName(name);
-    link.click();
-    URL.revokeObjectURL(url);
-    toast.success("Данные скачаны");
-  }, [name, wishes, collections, currency, settings]);
+  const exportJson = useCallback(async () => {
+    if (exportLock.current) return;
+    if (!ready || storageError) {
+      toast.error("Список ещё не открыт");
+      return;
+    }
+    exportLock.current = true;
+    setExporting(true);
+    const toastId = toast.loading("Подготавливаем резервную копию...");
+    try {
+      const ids = localPhotoIds(wishes, collections);
+      const photos: BackupPhoto[] = [];
+      let missing = 0;
+      let oversized = 0;
+      let unreadable = 0;
+      for (const id of ids) {
+        try {
+          const blob = await getPhotoBlob(`idb:${id}`);
+          if (!blob) {
+            missing += 1;
+            continue;
+          }
+          if (blob.size > MAX_BACKUP_PHOTO_BYTES) {
+            oversized += 1;
+            continue;
+          }
+          const dataUrl = await blobToDataUrl(blob);
+          if (dataUrl.length > MAX_BACKUP_DATA_URL_CHARS) {
+            oversized += 1;
+            continue;
+          }
+          photos.push({ id, mime: blob.type || "image/jpeg", dataUrl });
+        } catch (error) {
+          console.warn("[Wishlist] photo backup skipped", error instanceof Error ? error.name : "Error");
+          unreadable += 1;
+        }
+      }
+      const file = buildBackup(name, wishes, collections, { currency, settings, photos });
+      const blob = new Blob([JSON.stringify(file)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = backupFileName(name);
+      link.click();
+      URL.revokeObjectURL(url);
+      const stamp = file.exportedAt;
+      try {
+        await rememberBackupExport(stamp);
+        setLastExportAt(stamp);
+      } catch (error) {
+        console.warn("[Wishlist] backup stamp failed", error instanceof Error ? error.name : "Error");
+      }
+      const skipped = missing + oversized + unreadable;
+      if (skipped > 0) {
+        const parts = [
+          missing ? `${missing} не найдено` : "",
+          oversized ? `${oversized} слишком большие` : "",
+          unreadable ? `${unreadable} не читаются` : "",
+        ].filter(Boolean);
+        toast.error(`Копия скачана без ${skipped} фото (${parts.join(", ")}). Это не полная копия.`, { id: toastId });
+      } else if (photos.length) {
+        toast.success(`Резервная копия скачана, вместе с фото: ${photos.length}`, { id: toastId });
+      } else {
+        toast.success("Резервная копия скачана", { id: toastId });
+      }
+    } catch (error) {
+      console.warn("[Wishlist] backup export failed", error instanceof Error ? error.name : "Error");
+      toast.error("Не удалось подготовить резервную копию", { id: toastId });
+    } finally {
+      exportLock.current = false;
+      setExporting(false);
+    }
+  }, [ready, storageError, name, wishes, collections, currency, settings]);
 
   const importFile = useCallback(async (file: File) => {
-    const text = await file.text();
+    if (!ready) {
+      toast.error("Список ещё не открыт");
+      return null;
+    }
     try {
+      const text = await file.text();
       const parsed = parseBackup(JSON.parse(text));
       if (!parsed || !parsed.wishes.length) {
         toast.error("В файле нет хотелок");
@@ -397,7 +504,7 @@ export function useWishlist() {
       toast.error("Файл не читается или повреждён");
       return null;
     }
-  }, []);
+  }, [ready]);
 
   const confirmImport = useCallback(
     async (
@@ -406,7 +513,9 @@ export function useWishlist() {
       nextCollections: Collection[],
       nextSettings?: AppSettings,
       nextCurrency?: Currency,
+      nextPhotos: ParsedBackupPhoto[] = [],
     ) => {
+      loadGeneration.current += 1;
       const previous = { name, wishes, collections, settings, currency };
       if (nextName?.trim()) setName(nextName.trim());
       setWishes(nextWishes);
@@ -414,18 +523,23 @@ export function useWishlist() {
       if (nextSettings) setSettings(nextSettings);
       if (nextCurrency) setCurrency(nextCurrency);
       try {
-        await replaceWishlist(nextName, nextWishes, nextCollections);
-        if (nextSettings) await saveSettings(nextSettings);
-        if (nextCurrency) await saveProfile({ currency: nextCurrency });
-        toast.success(`Список заменён: ${nextWishes.length} ${wishesWord(nextWishes.length)}`);
+        await replaceWishlist(nextName, nextWishes, nextCollections, {
+          photos: nextPhotos.map((photo) => ({ id: photo.id, blob: photo.blob, mime: photo.mime })),
+          currency: nextCurrency,
+          settings: nextSettings,
+        });
+        setStorageError(null);
+        const photoNote = nextPhotos.length ? `, фото: ${nextPhotos.length}` : "";
+        toast.success(`Список заменён: ${nextWishes.length} ${wishesWord(nextWishes.length)}${photoNote}`);
         return true;
-      } catch {
+      } catch (error) {
+        console.warn("[Wishlist] backup import failed", error instanceof Error ? error.name : "Error");
         setName(previous.name);
         setWishes(previous.wishes);
         setCollections(previous.collections);
         setSettings(previous.settings);
         setCurrency(previous.currency);
-        toast.error("Не удалось восстановить копию");
+        toast.error("Не удалось восстановить копию. Текущие данные не заменены.");
         return false;
       }
     },
@@ -434,6 +548,12 @@ export function useWishlist() {
 
   return {
     ready,
+    storageError,
+    storageRetrying,
+    exporting,
+    lastExportAt,
+    persistence,
+    retryLoad,
     mapReady,
     name,
     setName,

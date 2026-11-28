@@ -21,6 +21,7 @@ interface MetaRow {
   dockOrder?: DockTab[];
   homeScreen?: DockTab;
   dockHidden?: DockTab[];
+  exportedAt?: string;
 }
 
 export interface PhotoRow {
@@ -134,12 +135,153 @@ function database(): WishlistDB {
           });
         }
       });
+    next.on("blocked", () => {
+      console.warn("[Wishlist] IndexedDB blocked: another tab holds the connection. The database was not deleted.");
+    });
+    next.on("versionchange", () => {
+      next.close();
+      if (db === next) db = null;
+      console.warn("[Wishlist] IndexedDB versionchange: connection closed. The database was not deleted.");
+    });
     db = next;
   }
   return db;
 }
 
 const DEFAULT_NAME = "Мои хотелки";
+
+const OPEN_TIMEOUT_MS = 8000;
+
+export function formatStorageError(error: unknown): string {
+  if (error instanceof Error) {
+    const name = error.name || "Error";
+    const message = error.message || "не удалось прочитать локальную базу";
+    const text = message.startsWith(name) ? message : `${name}: ${message}`;
+    const lines = [...new Set(text.split(/\n+/).map((line) => line.trim()).filter(Boolean))];
+    return lines.join(" ").slice(0, 300);
+  }
+  return "UnknownError: не удалось прочитать локальную базу";
+}
+
+/** Dexie names we surface as-is: DatabaseClosedError, VersionError, UpgradeError, OpenFailedError, plus DOMException QuotaExceededError, UnknownError, AbortError. */
+export async function openWishlistDatabase(): Promise<WishlistDB> {
+  const store = database();
+  if (store.isOpen()) return store;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const opened = store.open();
+  void opened.catch(() => undefined);
+  try {
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        const error = new Error("Браузер не открыл локальную базу за 8 секунд");
+        error.name = "TimeoutError";
+        reject(error);
+      }, OPEN_TIMEOUT_MS);
+    });
+    await Promise.race([opened, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  return store;
+}
+
+/** Close a stuck connection and open the same `wishlist` database again. Never deletes data. */
+export async function reopenWishlistDatabase(): Promise<void> {
+  if (db) {
+    try {
+      db.close();
+    } catch (error) {
+      console.warn("[Wishlist] IndexedDB close failed", error instanceof Error ? error.name : "Error");
+    }
+    db = null;
+  }
+  await openWishlistDatabase();
+}
+
+export interface PersistentStorageStatus {
+  supported: boolean;
+  persisted: boolean;
+  usage?: number | null;
+  quota?: number | null;
+}
+
+export async function requestPersistentStorage(): Promise<PersistentStorageStatus> {
+  if (!("storage" in navigator)) {
+    return { supported: false, persisted: false };
+  }
+
+  try {
+    const storage = navigator.storage;
+    const before = storage.persisted ? await storage.persisted() : false;
+
+    const persisted = before || (storage.persist ? await storage.persist() : false);
+
+    const estimate = storage.estimate ? await storage.estimate() : undefined;
+
+    return {
+      supported: true,
+      persisted,
+      usage: estimate?.usage ?? null,
+      quota: estimate?.quota ?? null,
+    };
+  } catch (error) {
+    console.warn("[Wishlist] Persistent storage request failed", error instanceof Error ? error.name : "Error");
+    return { supported: true, persisted: false };
+  }
+}
+
+export interface StorageDiagnostic {
+  name: string;
+  version: number;
+  wishes: number;
+  collections: number;
+  photos: number;
+  hasProfile: boolean;
+  hasSettings: boolean;
+  persisted: boolean | null;
+  usage: number | null;
+  quota: number | null;
+}
+
+export async function diagnoseStorage(): Promise<StorageDiagnostic> {
+  const store = await openWishlistDatabase();
+  const [wishes, collections, photos, profile, settings] = await Promise.all([
+    store.wishes.count(),
+    store.collections.count(),
+    store.photos.count(),
+    store.meta.get("profile"),
+    store.meta.get("settings"),
+  ]);
+  let persisted: boolean | null = null;
+  let usage: number | null = null;
+  let quota: number | null = null;
+  if ("storage" in navigator) {
+    try {
+      persisted = navigator.storage.persisted ? await navigator.storage.persisted() : null;
+      if (navigator.storage.estimate) {
+        const estimate = await navigator.storage.estimate();
+        usage = estimate.usage ?? null;
+        quota = estimate.quota ?? null;
+      }
+    } catch (error) {
+      console.warn("[Wishlist] storage estimate failed", error instanceof Error ? error.name : "Error");
+    }
+  }
+  const report: StorageDiagnostic = {
+    name: store.name,
+    version: store.verno,
+    wishes,
+    collections,
+    photos,
+    hasProfile: Boolean(profile),
+    hasSettings: Boolean(settings),
+    persisted,
+    usage,
+    quota,
+  };
+  console.info("[Wishlist] storage", report);
+  return report;
+}
 
 function normalizeWish(wish: Wish): Wish {
   const kind = isWishKind(wish.kind) ? wish.kind : "purchase";
@@ -166,13 +308,15 @@ export async function loadWishlist(): Promise<{
   collections: Collection[];
   mapReady: boolean;
   settings: AppSettings;
+  lastExportedAt: string | null;
 }> {
-  const store = database();
-  const [wishesRaw, collections, profile, settingsRow] = await Promise.all([
+  const store = await openWishlistDatabase();
+  const [wishesRaw, collections, profile, settingsRow, backupRow] = await Promise.all([
     store.wishes.toArray(),
     store.collections.toArray(),
     store.meta.get("profile"),
     store.meta.get("settings"),
+    store.meta.get("backup"),
   ]);
   const wishes = wishesRaw.map(normalizeWish);
   wishes.sort((a, b) => a.order - b.order);
@@ -191,7 +335,13 @@ export async function loadWishlist(): Promise<{
       dockOrder: settingsRow?.dockOrder,
       dockHidden: settingsRow?.dockHidden,
     }),
+    lastExportedAt: typeof backupRow?.exportedAt === "string" ? backupRow.exportedAt : null,
   };
+}
+
+export async function rememberBackupExport(exportedAt: string): Promise<void> {
+  const store = await openWishlistDatabase();
+  await store.meta.put({ key: "backup", exportedAt });
 }
 
 export async function saveProfile(patch: { name?: string; currency?: Currency }): Promise<void> {
@@ -303,19 +453,46 @@ export async function replaceWishlist(
   name: string | null,
   wishes: Wish[],
   collections: Collection[] = [],
+  extras?: {
+    photos?: Array<{ id: string; blob: Blob; mime: string }>;
+    currency?: Currency;
+    settings?: AppSettings;
+  },
 ): Promise<void> {
-  const store = database();
-  await store.transaction("rw", store.wishes, store.collections, store.meta, async () => {
+  const store = await openWishlistDatabase();
+  await store.transaction("rw", store.wishes, store.collections, store.meta, store.photos, async () => {
     await store.wishes.clear();
     await store.collections.clear();
+    await store.photos.clear();
     if (wishes.length) await store.wishes.bulkAdd(wishes.map(normalizeWish));
     if (collections.length) await store.collections.bulkAdd(collections);
-    if (name?.trim()) {
+    if (extras?.photos?.length) {
+      const now = Date.now();
+      await store.photos.bulkAdd(
+        extras.photos.map((photo) => ({
+          id: photo.id,
+          blob: photo.blob,
+          mime: photo.mime || photo.blob.type || "image/jpeg",
+          createdAt: now,
+        })),
+      );
+    }
+    if (name?.trim() || extras?.currency) {
       const current = await store.meta.get("profile");
       await store.meta.put({
         key: "profile",
-        name: name.trim(),
-        currency: current?.currency ?? "RUB",
+        name: name?.trim() || current?.name || DEFAULT_NAME,
+        currency: extras?.currency ?? current?.currency ?? "RUB",
+      });
+    }
+    if (extras?.settings) {
+      const next = normalizeSettings(extras.settings);
+      await store.meta.put({
+        key: "settings",
+        theme: next.theme,
+        homeScreen: next.homeScreen,
+        dockOrder: next.dockOrder,
+        dockHidden: next.dockHidden,
       });
     }
   });

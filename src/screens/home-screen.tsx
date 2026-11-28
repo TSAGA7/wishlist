@@ -8,6 +8,7 @@ import type { HomeFilter, Wish } from "@/types/wishlist";
 
 export function HomeScreen({
   name,
+  ready,
   wishes,
   query,
   filter,
@@ -32,6 +33,7 @@ export function HomeScreen({
   onBulkDelete,
 }: {
   name: string;
+  ready: boolean;
   wishes: Wish[];
   query: string;
   filter: HomeFilter;
@@ -230,7 +232,12 @@ export function HomeScreen({
         </label>
       ) : null}
 
-      {homeItems.length === 0 ? (
+      {!ready ? (
+        <div className="empty-card glass">
+          <strong>Открываем список…</strong>
+          <p>Читаем желания, сохранённые на этом устройстве.</p>
+        </div>
+      ) : homeItems.length === 0 ? (
         <div className="empty-card glass">
           <span className="orb">
             <Bookmark className="size-6" />
